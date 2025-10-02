@@ -1,1 +1,0 @@
-# Synergy-Loyalty-Program
