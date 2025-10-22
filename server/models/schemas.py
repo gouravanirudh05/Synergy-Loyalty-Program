@@ -19,6 +19,7 @@ class Event(BaseModel):
     event_id: str
     event_name: str
     points: int
+    secret_code: str
     expired: bool = False
     participants: int = 0
     created_at: Optional[datetime] = None
@@ -26,9 +27,23 @@ class Event(BaseModel):
     updated_at: Optional[datetime] = None
     updated_by: Optional[str] = None
 
+class EventCreate(BaseModel):
+    event_name: str
+    points: int
+
+class EventUpdate(BaseModel):
+    event_name: Optional[str] = None
+    points: Optional[int] = None
+    expired: Optional[bool] = None
+
 class Volunteer(BaseModel):
     rollNumber: str
     name: str
     email: str
     added_at: Optional[datetime] = None
     added_by: Optional[str] = None
+
+class VolunteerCreate(BaseModel):
+    rollNumber: str
+    name: str
+    email: str
