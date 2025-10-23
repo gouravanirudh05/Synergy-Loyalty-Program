@@ -422,3 +422,35 @@ input[type="checkbox"]:focus {
     border-radius: 0.5rem;
   }
 }
+
+.neon-border {
+  border: 1px solid #ff00ff;
+  box-shadow: 0 0 10px #ff00ff;
+}
+
+.cyber-glow {
+  text-shadow: 0 0 10px #0ff, 0 0 20px #f0f, 0 0 30px #ff00ff;
+}
+
+.neon-glow {
+  box-shadow: 0 0 20px #ff00ff;
+}
+
+.cyber-glow {
+  text-shadow:
+    0 0 5px #ff00ff,
+    0 0 10px #ff00ff,
+    0 0 20px #00ffff,
+    0 0 40px #00ffff;
+}
+
+@keyframes scan-line {
+  0% { transform: translateY(-100%); opacity: 0.2; }
+  50% { transform: translateY(100%); opacity: 0.8; }
+  100% { transform: translateY(300%); opacity: 0.2; }
+}
+
+.animate-scan-line {
+  animation: scan-line 3s linear infinite;
+  border-top: 2px solid #ff00ff;
+}

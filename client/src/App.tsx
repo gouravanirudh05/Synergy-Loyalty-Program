@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './homepage/Login';
 import AdminDashboard from './admin/AdminDashboard';
+import VolunteerPortal from './volunteer/pages/VolunteerPortal';
 import LeaderboardPage from './admin/LeaderboardPage';
 
 //DUMMY STUFF REMOVE ONCE REST IS DONE
@@ -85,7 +86,7 @@ function App() {
         />
         <Route 
           path="/volunteer" 
-          element={user && (user.role === 'volunteer' || user.role=='admin') ? <VolunteerDashboard onLogout={handleLogout} /> : <Navigate to="/" replace />} 
+          element={user && (user.role === 'volunteer' || user.role=='admin') ? <VolunteerPortal onLogout={handleLogout} /> : <Navigate to="/" replace />} 
         />
         <Route 
           path="/participant" 
