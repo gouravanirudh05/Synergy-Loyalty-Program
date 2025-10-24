@@ -30,6 +30,13 @@ class QRScanRequest(BaseModel):
 
 # --- Routes ---
 
+def init_collections(ec, tc):
+    global event_collection
+    event_collection = ec
+
+    global team_collection
+    team_collection = tc
+
 @router.post("/authorize")
 async def authorize_volunteer(
     data: VolunteerEventAuth,
@@ -43,7 +50,7 @@ async def authorize_volunteer(
     email = user["email"]  # coming from Redis session (require_admin_or_volunteer)
     role = user["role"]
 
-    event = event_collection.find_one({"event_id": data.event_id})
+    event = await event_collection.find_one({"event_id": data.event_id})
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
     if data.secret_code != event.get("secret_code"):
@@ -78,11 +85,11 @@ async def scan_qr(
     volunteer_email = payload["sub"]
 
     # Verify event exists
-    event = event_collection.find_one({"event_id": event_id})
+    event = await event_collection.find_one({"event_id": event_id})
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
 
-    team = team_collection.find_one({"team_id": data.team_id})
+    team = await team_collection.find_one({"team_id": data.team_id})
     if not team:
         raise HTTPException(status_code=404, detail="Team not found")
 

@@ -27,11 +27,13 @@ db_collections = connect_mongo()
 event_collection = db_collections["event_collection"]
 volunteer_collection = db_collections["volunteer_collection"]
 user_collection = db_collections["user_collection"]
+team_collection = db_collections["team_collection"]
 
 # Pass collections to routes
 auth_routes.init_collections(volunteer_collection)
 event_routes.init_collections(event_collection)
 volunteer_routes.init_collections(volunteer_collection)
+volunteer_page_routes.init_collections(event_collection, team_collection)
 
 # --- Include routers ---
 app.include_router(auth_routes.router)

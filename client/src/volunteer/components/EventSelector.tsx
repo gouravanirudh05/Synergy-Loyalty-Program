@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { authorizeVolunteer, getEvents } from "../utils/api";
-import { Lock, Calendar, ChevronDown } from "lucide-react";
+import { Lock, Calendar, Search, Eye, EyeOff, CheckCircle } from "lucide-react";
 
 interface Props {
   onAuthorized: (eventToken: string, eventName: string) => void;
@@ -12,10 +12,19 @@ const EventSelector: React.FC<Props> = ({ onAuthorized }) => {
   const [secretCode, setSecretCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showResults, setShowResults] = useState(false);
 
   useEffect(() => {
     getEvents().then(setEvents).catch(console.error);
   }, []);
+
+  const filteredEvents = events.filter(e => 
+    e.event_name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const selectedEventName = events.find(e => e.event_id === selectedEvent)?.event_name || "";
 
   const handleAuthorize = async () => {
     try {
@@ -35,27 +44,75 @@ const EventSelector: React.FC<Props> = ({ onAuthorized }) => {
   return (
     <div className="w-full max-w-md mx-auto">
       <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-xl p-6 sm:p-8 shadow-2xl">
-        {/* Event Selection */}
+        {/* Event Selection with Search */}
         <div className="mb-6">
           <label className="flex items-center gap-2 text-sm font-medium text-slate-300 mb-2">
             <Calendar className="w-4 h-4 text-cyan-400" />
-            Select Event
+            Search & Select Event
           </label>
+          
+          {/* Search Input */}
           <div className="relative">
-            <select
-              className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg text-white appearance-none focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 transition-all"
-              onChange={(e) => setSelectedEvent(e.target.value)}
-              value={selectedEvent}
-            >
-              <option value="" className="bg-slate-900">-- Choose an event --</option>
-              {events.map((e) => (
-                <option key={e.event_id} value={e.event_id} className="bg-slate-900">
-                  {e.event_name}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 z-10" />
+            <input
+              type="text"
+              placeholder="Type to search events..."
+              className="w-full pl-10 pr-10 py-3 bg-slate-800/50 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 transition-all"
+              value={selectedEvent ? selectedEventName : searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setSelectedEvent("");
+                setShowResults(true);
+              }}
+              onFocus={() => setShowResults(true)}
+              onBlur={() => setTimeout(() => setShowResults(false), 200)}
+            />
+            
+            {/* Selected Indicator */}
+            {selectedEvent && (
+              <CheckCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-green-400" />
+            )}
+            
+            {/* Results Dropdown */}
+            {showResults && searchQuery && (
+              <div className="absolute z-20 w-full mt-2 bg-slate-800 border border-slate-700 rounded-lg shadow-xl max-h-60 overflow-y-auto">
+                {filteredEvents.length > 0 ? (
+                  <>
+                    {filteredEvents.map((e) => (
+                      <button
+                        key={e.event_id}
+                        type="button"
+                        className="w-full px-4 py-3 text-left hover:bg-slate-700/50 transition-colors border-b border-slate-700/50 last:border-b-0 text-white"
+                        onClick={() => {
+                          setSelectedEvent(e.event_id);
+                          setSearchQuery("");
+                          setShowResults(false);
+                        }}
+                      >
+                        <div className="font-medium">{e.event_name}</div>
+                        <div className="text-xs text-slate-400 mt-1">ID: {e.event_id}</div>
+                      </button>
+                    ))}
+                  </>
+                ) : (
+                  <div className="px-4 py-6 text-center text-slate-400">
+                    <p className="text-sm">No events found</p>
+                    <p className="text-xs mt-1">Try a different search term</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
+          
+          {/* Selected Event Display */}
+          {selectedEvent && (
+            <div className="mt-3 p-3 bg-cyan-500/10 border border-cyan-500/30 rounded-lg">
+              <p className="text-sm text-cyan-400 flex items-center gap-2">
+                <CheckCircle className="w-4 h-4" />
+                Selected: {selectedEventName}
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Secret Code Input */}
@@ -64,18 +121,32 @@ const EventSelector: React.FC<Props> = ({ onAuthorized }) => {
             <Lock className="w-4 h-4 text-cyan-400" />
             Volunteer Access Code
           </label>
-          <input
-            type="password"
-            placeholder="Enter secret code"
-            className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 transition-all"
-            value={secretCode}
-            onChange={(e) => setSecretCode(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && selectedEvent && secretCode) {
-                handleAuthorize();
-              }
-            }}
-          />
+          <div className="relative">
+            <input
+              type={showPassword ? "text" : "password"}
+              placeholder="Enter secret code"
+              className="w-full px-4 py-3 pr-12 bg-slate-800/50 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 transition-all"
+              value={secretCode}
+              onChange={(e) => setSecretCode(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && selectedEvent && secretCode) {
+                  handleAuthorize();
+                }
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300 transition-colors"
+              aria-label={showPassword ? "Hide password" : "Show password"}
+            >
+              {showPassword ? (
+                <Eye className="w-5 h-5" />
+              ) : (
+                <EyeOff className="w-5 h-5" />
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Authorize Button */}

@@ -65,11 +65,11 @@ async def auth(request: Request):
 
         name = user_data.get("displayName")
         roll_number = user_data.get("employeeId", "N/A")
-        role = "admin" if (email.lower() == ADMIN_EMAIL.lower() or email.lower() == "sathishadithiyaa.sv@iiitb.ac.in") else "participant"
+        role = "admin" if (email.lower() == ADMIN_EMAIL.lower()) else "participant"
 
-        if volunteer_collection is not None and await volunteer_collection.find_one({"rollNumber": roll_number}) is not None:
+        if volunteer_collection is not None and await volunteer_collection.find_one({"email": email.lower()}) is not None:
             role = "volunteer"
-
+        
         request.session["user"] = {
             "name": name, "email": email, "rollNumber": roll_number, "role": role
         }

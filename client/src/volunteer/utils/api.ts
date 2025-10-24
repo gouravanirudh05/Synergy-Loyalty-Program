@@ -2,6 +2,8 @@ import axios from "axios";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
+axios.defaults.withCredentials = true;
+
 export const getEvents = async () => {
   const res = await axios.get(`${API_BASE}/events`);
   console.log(res.data);

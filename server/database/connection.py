@@ -29,6 +29,7 @@ def connect_mongo():
             "event_collection": db.events,
             "volunteer_collection": db.volunteers,
             "user_collection": db.users,
+            "team_collection": db.teams
         }
 
     except Exception as e:
