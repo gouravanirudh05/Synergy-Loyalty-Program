@@ -5,6 +5,7 @@ export interface Event {
   event_id: string;
   event_name: string;
   points: number;
+  secret_code:string;
   expired: boolean;
   participants: number;
   created_at?: string;
@@ -82,6 +83,7 @@ class ApiService {
   async createEvent(eventData: {
     event_name: string;
     points: number;
+    secret_code?: string;
   }): Promise<{ message: string; event: Event }> {
     return this.makeRequest('/events', {
       method: 'POST',
@@ -95,6 +97,7 @@ class ApiService {
       event_name?: string;
       points?: number;
       expired?: boolean;
+      secret_code?: string;
     }
   ): Promise<{ message: string; event: Event }> {
     return this.makeRequest(`/events/${eventId}`, {

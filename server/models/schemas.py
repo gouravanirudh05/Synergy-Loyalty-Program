@@ -30,6 +30,7 @@ class Event(BaseModel):
 class EventCreate(BaseModel):
     event_name: str
     points: int
+    secret_code:str
 
 class EventUpdate(BaseModel):
     event_name: Optional[str] = None

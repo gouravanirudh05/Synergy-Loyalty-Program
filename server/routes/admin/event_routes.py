@@ -18,6 +18,7 @@ async def create_event(event_data: EventCreate, admin_user: dict = Depends(requi
     event = {
         "event_id": event_id,
         "event_name": event_data.event_name,
+        "secret_code":event_data.secret_code,
         "points": event_data.points,
         "expired": False,
         "participants": 0,

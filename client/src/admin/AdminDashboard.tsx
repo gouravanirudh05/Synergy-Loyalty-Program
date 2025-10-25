@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Filter, Calendar, Users, TrendingUp, AlertCircle, X } from 'lucide-react';
 import Navbar from './Navbar';
-import EventCard, { Event } from './EventCard';
+import EventCard from './EventCard';
 import EventModal from './EventModal';
 import VolunteerModal from './VolunteerModal';
 import FilterModal, { FilterOptions } from './FilterModal';
 import { apiService, Volunteer } from '../services/api';
+import type { Event } from '../services/api';
 
 interface User {
   name: string;
@@ -137,7 +138,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
     setFilters(newFilters);
   };
 
-  const handleSaveEvent = async (eventData: { event_name: string; points: number; expired?: boolean }) => {
+  const handleSaveEvent = async (eventData: { event_name: string; points: number; expired?: boolean; secret_code?: string }) => {
     try {
       setLoading(true);
       if (editingEvent) {
@@ -145,7 +146,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
         await apiService.updateEvent(editingEvent.event_id, eventData);
       } else {
         // Create new event
-        await apiService.createEvent(eventData);
+        const { event_name, points, secret_code } = eventData;
+        await apiService.createEvent({ event_name, points, secret_code });
       }
       await loadEvents(); // Refresh the events list
       setEventModalOpen(false);

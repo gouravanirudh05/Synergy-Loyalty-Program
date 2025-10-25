@@ -5,6 +5,7 @@ export interface Event {
   event_id: string;
   event_name: string;
   points: number;
+  secret_code: string;
   expired: boolean;
   participants: number;
   created_at?: string;
@@ -60,6 +61,10 @@ const EventCard: React.FC<EventCardProps> = ({ event, onEdit, onDelete }) => {
           </span>
         </div>
       </div>
+
+      <h3 className="text-lg md:text-xl font-bold text-white mb-3 tracking-wide break-words">
+        {event.secret_code}
+      </h3>
       
       <div className="flex flex-col sm:flex-row gap-2">
         <button

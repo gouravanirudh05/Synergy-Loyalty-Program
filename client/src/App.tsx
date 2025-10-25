@@ -86,7 +86,7 @@ function App() {
         />
         <Route 
           path="/volunteer" 
-          element={user && (user.role === 'volunteer' || user.role=='admin') ? <VolunteerPortal onLogout={handleLogout} /> : <Navigate to="/" replace />} 
+          element={user && (user.role === 'volunteer' || user.role=='admin') ? <VolunteerPortal /> : <Navigate to="/" replace />} 
         />
         <Route 
           path="/participant" 

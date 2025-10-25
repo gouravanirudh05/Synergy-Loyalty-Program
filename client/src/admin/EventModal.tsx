@@ -5,7 +5,7 @@ import { Event } from './EventCard';
 interface EventModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (event: { event_name: string; points: number; expired?: boolean }) => void;
+  onSave: (event: { event_name: string; points: number; secret_code:string;expired?: boolean }) => void;
   event?: Event;
 }
 
@@ -13,6 +13,7 @@ const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, onSave, event 
   const [formData, setFormData] = useState({
     event_name: '',
     points: '',
+    secret_code:"",
     expired: false
   });
   const [errors, setErrors] = useState({
@@ -26,12 +27,14 @@ const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, onSave, event 
         setFormData({
           event_name: event.event_name,
           points: event.points.toString(),
+          secret_code: event.secret_code,
           expired: event.expired
         });
       } else {
         setFormData({
           event_name: '',
           points: '',
+          secret_code:"",
           expired: false
         });
       }
@@ -59,9 +62,10 @@ const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, onSave, event 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (validateForm()) {
-      const eventData: { event_name: string; points: number; expired?: boolean } = {
+      const eventData: { event_name: string; points: number; expired?: boolean; secret_code: string } = {
         event_name: formData.event_name.trim(),
-        points: parseInt(formData.points)
+        points: parseInt(formData.points),
+        secret_code: formData.secret_code
       };
       
       if (event) {
@@ -136,6 +140,21 @@ const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, onSave, event 
             {errors.points && (
               <p className="text-red-400 text-xs mt-1 animate-slide-down">{errors.points}</p>
             )}
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-xs md:text-sm font-medium text-cyan-300 mb-2 uppercase tracking-wider">
+              Secret Code
+            </label>
+            <input
+              type="string"
+              value={formData.secret_code}
+              onChange={(e) => handleInputChange('secret_code', e.target.value)}
+              className={`cyber-input w-full ${errors.points ? 'border-red-500 focus:border-red-400' : ''}`}
+              placeholder="Enter secret code..."
+              min="0"
+              step="1"
+            />
           </div>
           
 
