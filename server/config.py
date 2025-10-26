@@ -18,3 +18,5 @@ CLUSTER_NAME = config("CLUSTER_NAME")
 DATABASE_NAME = config("DATABASE_NAME")
 APP_NAME = config("APP_NAME")
 DEADLINE_DATE = config("DEADLINE_DATE", default=None)
+
+SECRET_KEY = config("SECRET_KEY")

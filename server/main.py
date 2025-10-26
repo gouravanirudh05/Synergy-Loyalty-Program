@@ -12,18 +12,23 @@ import uuid
 from datetime import datetime
 import httpx
 import json
+from jose import jwt, JWTError
+from datetime import datetime, timedelta
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 # Import configurations and models
 from config import (
     CLIENT_ID, CLIENT_SECRET,SESSION_SECRET_KEY, ADMIN_EMAIL,REDIS_URL,
     FRONTEND_URL, MONGODB_USERNAME, MONGODB_PASSWORD, CLUSTER_NAME,
-    DATABASE_NAME, APP_NAME, DEADLINE_DATE
+    DATABASE_NAME, APP_NAME, DEADLINE_DATE, SECRET_KEY
 )
 from models import User, Event, Volunteer
 
 ''' The backend API Endpoints setup '''
 
 app = FastAPI()
+
+security = HTTPBearer()
 
 # --- CORS Configuration ---
 app.add_middleware(
@@ -154,6 +159,13 @@ class TeamCreate(BaseModel):
 class TeamAction(BaseModel):
     team_id: str
 
+class VolunteerEventAuth(BaseModel):
+    event_id: str
+    secret_code: str
+
+class QRScanRequest(BaseModel):
+    team_id: str
+
 # --- Helper Functions ---
 def serialize_datetime_fields(obj):
     """Convert datetime objects in a dictionary to ISO format strings"""
@@ -170,6 +182,24 @@ def serialize_datetime_fields(obj):
                 result[key] = value
         return result
     return obj
+
+ALGORITHM = "HS256"
+TOKEN_EXPIRE_MINUTES = 180
+
+def create_volunteer_token(volunteer_email: str, event_id: str):
+    payload = {
+        "sub": volunteer_email,
+        "event_id": event_id,
+        "exp": datetime.utcnow() + timedelta(minutes=TOKEN_EXPIRE_MINUTES)
+    }
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+def verify_volunteer_token(token: str):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return payload  # {sub: email, event_id: ...}
+    except JWTError:
+        return None
 
 
 def sanitize_event(event: dict):
@@ -528,139 +558,85 @@ async def get_volunteer(roll_number: str, request: Request, user: dict = Depends
 
 # --- Mark Attendance Features ---
 
-@app.post('/api/volunteer/verify_event_code')
-async def verify_event_code(payload: EventCodeVerify, request: Request, user: dict = Depends(require_admin_or_volunteer)):
-    """Verify an input secret code for an event (Volunteer or Admin)
-
-    Body: { "event_name": "...", "input_secret_code": "..." }
+@app.post("/api/volunteer/authorize")
+async def authorize_volunteer(
+    data: VolunteerEventAuth,
+    request: Request,
+    user=Depends(require_admin_or_volunteer)
+):
     """
-    if event_collection is None:
-        raise HTTPException(status_code=503, detail="Database connection not available. Please check MongoDB configuration.")
-
-    try:
-        event_name = payload.event_name
-        input_code = payload.input_secret_code
-
-        event = await event_collection.find_one({"event_name": event_name})
-        if not event:
-            raise HTTPException(status_code=404, detail="Event not found")
-
-        # Compare codes (do not expose the actual secret_code in response)
-        actual_code = event.get("secret_code")
-        if actual_code is None:
-            # The event may not have a secret_code configured
-            return JSONResponse(status_code=400, content={"valid": False, "message": "This event does not have a secret code configured."})
-
-        if str(input_code) == str(actual_code):
-            # Successful verification - return event metadata (not the secret)
-            return JSONResponse(content={
-                "valid": True,
-                "message": "Code verified successfully.",
-                "event_name": event.get("event_name"),
-                "event_id": event.get("event_id"),
-                "points": event.get("points")
-            })
-        else:
-            return JSONResponse(status_code=401, content={"valid": False, "message": "Invalid secret code."})
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error verifying code: {str(e)}")
-
-@app.post('/api/volunteer/mark')
-async def mark_event_participation(payload: VolunteerMark, request: Request, user: dict = Depends(require_admin_or_volunteer)):
-    """Mark a team as having participated in an event.
-
-    Body: { "team_id": "...", "event_name": "..." }
-    Steps:
-    1. Check event exists and expired == False
-    2. Ensure team exists and hasn't already recorded this event
-    3. Increment team's points by event.points and push event_name into events_participated
-    4. Increment event.participants by 1
+    Authorize a logged-in volunteer for an event using secret code.
+    Returns a short-lived JWT token bound to that event.
     """
-    if event_collection is None or teams_collection is None:
-        raise HTTPException(status_code=503, detail="Database connection not available. Please check MongoDB configuration.")
+    email = user["email"]  # coming from Redis session (require_admin_or_volunteer)
+    role = user["role"]
 
-    try:
-        team_id = payload.team_id
-        event_name = payload.event_name
+    event = await event_collection.find_one({"event_id": data.event_id})
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    if data.secret_code != event.get("secret_code"):
+        raise HTTPException(status_code=401, detail="Invalid secret code")
 
-        # Fetch event
-        event = await event_collection.find_one({"event_name": event_name})
-        if not event:
-            raise HTTPException(status_code=404, detail="Event not found")
+    # ✅ Generate token for this volunteer
+    token = create_volunteer_token(email, data.event_id)
 
-        if event.get("expired", False):
-            return JSONResponse(status_code=400, content={"success": False, "message": "Event has expired and cannot be marked."})
+    return {
+        "message": f"Authorization successful for event '{event['event_name']}'",
+        "volunteer_email": email,
+        "role": role,
+        "token": token
+    }
 
-        event_points = int(event.get("points", 0))
 
-        # Fetch team
-        team = await teams_collection.find_one({"team_id": team_id})
-        if not team:
-            raise HTTPException(status_code=404, detail="Team not found")
 
-        # Prevent double marking for the same event.
-        # events_participated may contain strings (legacy) or objects {"event":..., "marked_by":...}
-        participated = team.get("events_participated", [])
-        already_marked = False
-        for item in participated:
-            if isinstance(item, str) and item == event_name:
-                already_marked = True
-                break
-            if isinstance(item, dict) and item.get("event") == event_name:
-                already_marked = True
-                break
+@app.post("/api/volunteer/scan")
+async def scan_qr(
+    data: QRScanRequest,
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    user=Depends(require_admin_or_volunteer)
+):
+    """
+    Scans team QR (containing team_id). JWT in header proves event authorization.
+    """
+    token = credentials.credentials
+    payload = verify_volunteer_token(token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired event token")
 
-        if already_marked:
-            return JSONResponse(status_code=400, content={"success": False, "message": "Team already marked for this event."})
+    event_id = payload["event_id"]
+    volunteer_email = payload["sub"]
 
-        # Build marker object with who marked it (volunteer's roll number)
-        marker_roll = user.get("rollNumber")
-        event_participation_obj = {"event": event_name, "marked_by": marker_roll}
+    # Verify event exists
+    event = await event_collection.find_one({"event_id": event_id})
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
 
-        # Update team: add points and push participation object
-        team_update_result = await teams_collection.update_one(
-            {"team_id": team_id},
-            {"$inc": {"points": event_points}, "$push": {"events_participated": event_participation_obj}}
-        )
+    team = await teams_collection.find_one({"team_id": data.team_id})
+    if not team:
+        raise HTTPException(status_code=404, detail="Team not found")
 
-        if team_update_result.matched_count == 0:
-            raise HTTPException(status_code=500, detail="Failed to update team points")
+    if event.get("expired"):
+        raise HTTPException(status_code=400, detail="Event expired")
 
-        # Update event: increment participants
-        event_update_result = await event_collection.update_one(
-            {"event_name": event_name},
-            {"$inc": {"participants": 1}}
-        )
+    if event_id in team.get("events_participated", []):
+        raise HTTPException(status_code=400, detail="Team already participated in this event")
 
-        if event_update_result.matched_count == 0:
-            # Rollback team update? In simple flow, inform the client
-            raise HTTPException(status_code=500, detail="Failed to update event participants")
+    # Update team’s points and participation
+    new_points = team.get("points", 0) + event.get("points", 0)
+    teams_collection.update_one(
+        {"team_id": data.team_id},
+        {"$set": {"points": new_points}, "$push": {"events_participated": event_id}}
+    )
 
-        # Fetch updated team and event for response
-        updated_team = await teams_collection.find_one({"team_id": team_id})
-        updated_event = await event_collection.find_one({"event_name": event_name})
+    # Increment event’s participant count
+    event_collection.update_one({"event_id": event_id}, {"$inc": {"participants": 1}})
 
-        # Convert ObjectId to string if present
-        if updated_team and "_id" in updated_team:
-            updated_team["_id"] = str(updated_team["_id"])
-        if updated_event and "_id" in updated_event:
-            updated_event["_id"] = str(updated_event["_id"])
-        # Serialize datetime fields if any
-        updated_team = serialize_datetime_fields(updated_team) if updated_team else updated_team
-        updated_event = serialize_datetime_fields(updated_event) if updated_event else updated_event
-
-        # Sanitize before returning
-        updated_event = sanitize_event(updated_event)
-
-        return JSONResponse(status_code=200, content={"success": True, "message": "Team marked for event successfully.", "team": updated_team, "event": updated_event})
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error marking event participation: {str(e)}")
+    return {
+        "message": f"✅ Team '{team['team_name']}' successfully scanned for event '{event['event_name']}'",
+        "volunteer": volunteer_email,
+        "points_awarded": event["points"],
+        "team_points": new_points
+    }
 
 
 
