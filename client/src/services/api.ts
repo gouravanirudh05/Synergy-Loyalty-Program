@@ -1,4 +1,6 @@
 // API Service for backend communication
+import type { Team } from '../admin/LeaderboardPage';
+
 const API_BASE_URL = 'http://localhost:8000/api';
 
 export interface Event {
@@ -137,6 +139,14 @@ class ApiService {
   async getVolunteer(rollNumber: string): Promise<{ volunteer: Volunteer }> {
     return this.makeRequest(`/volunteers/${rollNumber}`);
   }
+  async getLeaderboard(): Promise<{ volunteers: [] }> {
+    return this.makeRequest("/leaderboard");
+  }
+
+  async getLeaderboardFull(): Promise<{ teams: Team[] }> {
+    return this.makeRequest('/leaderboard/full');
+  }
 }
+
 
 export const apiService = new ApiService();

@@ -851,3 +851,20 @@ async def leaderboard():
         return JSONResponse(content={"leaderboard": top_teams})
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching leaderboard: {str(e)}")
+
+@app.get('/api/leaderboard/full')
+async def leaderboard_full():
+    """Return all teams with all details, sorted by points descending."""
+    if teams_collection is None:
+        raise HTTPException(status_code=503, detail="Database connection not available. Please check MongoDB configuration.")
+    try:
+        teams = []
+        cursor = teams_collection.find().sort("points", -1)
+        async for team in cursor:
+            if "_id" in team:
+                team["_id"] = str(team["_id"])
+            team = serialize_datetime_fields(team)
+            teams.append(team)
+        return JSONResponse(content={"teams": teams})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching teams: {str(e)}")
