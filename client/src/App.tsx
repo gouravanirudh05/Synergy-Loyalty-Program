@@ -6,7 +6,7 @@ import VolunteerPortal from './volunteer/pages/VolunteerPortal';
 import LeaderboardPage from './admin/LeaderboardPage';
 import ParticipantPortal from './participant/pages/Participantportal';
 // import ParticipantPortal from "./participant/pages/ParticipantPortal";
-import Leaderboard from "./participant/pages/Leaderboard";
+// import Leaderboard from "./participant/pages/Leaderboard";
 
 interface User {
   name: string;
@@ -109,20 +109,20 @@ function App() {
           path="/leaderboard" 
           element={
             user 
-              ? <Leaderboard /> 
+              ? <LeaderboardPage/> 
               : <Navigate to="/" replace />
           } 
         />
         
         {/* Admin Leaderboard (if you want to keep it separate) */}
-        <Route 
+        {/* <Route 
           path="/admin/leaderboard" 
           element={
             user && user.role === 'admin'
               ? <LeaderboardPage user={user} onLogout={handleLogout} /> 
               : <Navigate to="/" replace />
           } 
-        />
+        /> */}
         
         {/* Catch-all Route */}
         <Route 

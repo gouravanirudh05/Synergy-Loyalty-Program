@@ -115,7 +115,7 @@ const LeaderboardPage = () => {
                           {team.name}
                         </h3>
                         <p className="text-gray-400 font-mono text-sm">
-                          Team {team.teamNumber}
+                          Team {team.name}
                         </p>
                       </div>
                     </div>

@@ -576,7 +576,7 @@ async def authorize_volunteer(
         raise HTTPException(status_code=404, detail="Event not found")
     if data.secret_code != event.get("secret_code"):
         raise HTTPException(status_code=401, detail="Invalid secret code")
-
+    
     # ✅ Generate token for this volunteer
     token = create_volunteer_token(email, data.event_id)
 
@@ -586,8 +586,6 @@ async def authorize_volunteer(
         "role": role,
         "token": token
     }
-
-
 
 @app.post("/api/volunteer/scan")
 async def scan_qr(
@@ -610,8 +608,9 @@ async def scan_qr(
     event = await event_collection.find_one({"event_id": event_id})
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
+    
+    team = await teams_collection.find_one({"qr_id": data.team_id})
 
-    team = await teams_collection.find_one({"team_id": data.team_id})
     if not team:
         raise HTTPException(status_code=404, detail="Team not found")
 
@@ -624,7 +623,7 @@ async def scan_qr(
     # Update team’s points and participation
     new_points = team.get("points", 0) + event.get("points", 0)
     teams_collection.update_one(
-        {"team_id": data.team_id},
+        {"qr_id": data.team_id},
         {"$set": {"points": new_points}, "$push": {"events_participated": event_id}}
     )
 
@@ -638,136 +637,7 @@ async def scan_qr(
         "team_points": new_points
     }
 
-
-
 # --- Participant Management ---
-
-
-@app.post('/api/create_team')
-async def create_team(payload: TeamCreate, request: Request, user: dict = Depends(get_current_user)):
-    """Create a new team with the requesting user as the only member."""
-    if teams_collection is None:
-        raise HTTPException(status_code=503, detail="Database connection not available. Please check MongoDB configuration.")
-
-    try:
-        # Deadline check: cannot create a team after DEADLINE_DATE
-        if DEADLINE_DATE:
-            try:
-                deadline_dt = datetime.fromisoformat(DEADLINE_DATE)
-            except Exception:
-                try:
-                    deadline_dt = datetime.strptime(DEADLINE_DATE, "%Y-%m-%d")
-                except Exception:
-                    deadline_dt = None
-
-            if deadline_dt and datetime.utcnow() > deadline_dt:
-                return JSONResponse(status_code=400, content={"success": False, "message": "Cannot create team after the deadline."})
-
-        # Ensure team_name uniqueness if provided
-        team_name = payload.team_name
-        if team_name:
-            existing_name = await teams_collection.find_one({"team_name": team_name})
-            if existing_name:
-                return JSONResponse(status_code=400, content={"success": False, "message": "Team name already taken. Choose a different name."})
-
-        # Prevent user from creating a team if already in another team
-        roll = user.get("rollNumber")
-        if roll:
-            already_in = await teams_collection.find_one({"members.rollNumber": roll})
-            if already_in:
-                return JSONResponse(status_code=400, content={"success": False, "message": "User already belongs to a team and cannot create another."})
-
-        team_id = str(uuid.uuid4())
-        team_name = team_name or f"Team-{team_id[:8]}"
-
-        member = {
-            "name": user.get("name"),
-            "email": user.get("email"),
-            "rollNumber": user.get("rollNumber"),
-            "role": user.get("role")
-        }
-
-        team = {
-            "team_id": team_id,
-            "team_name": team_name,
-            "members": [member],
-            "points": 0,
-            "events_participated": [],
-            "created_at": datetime.utcnow(),
-            "created_by": user.get("email")
-        }
-
-        result = await teams_collection.insert_one(team)
-        if result.inserted_id:
-            team["_id"] = str(result.inserted_id)
-            team = serialize_datetime_fields(team)
-            return JSONResponse(status_code=201, content={"message": "Team created successfully", "team": team})
-        else:
-            raise HTTPException(status_code=500, detail="Failed to create team")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error creating team: {str(e)}")
-
-
-@app.post('/api/join_team')
-async def join_team(payload: TeamAction, request: Request, user: dict = Depends(get_current_user)):
-    """Add the requesting user to the team with the given team_id."""
-    if teams_collection is None:
-        raise HTTPException(status_code=503, detail="Database connection not available. Please check MongoDB configuration.")
-
-    try:
-        # Deadline check: cannot join a team after DEADLINE_DATE
-        if DEADLINE_DATE:
-            try:
-                deadline_dt = datetime.fromisoformat(DEADLINE_DATE)
-            except Exception:
-                try:
-                    deadline_dt = datetime.strptime(DEADLINE_DATE, "%Y-%m-%d")
-                except Exception:
-                    deadline_dt = None
-
-            if deadline_dt and datetime.utcnow() > deadline_dt:
-                return JSONResponse(status_code=400, content={"success": False, "message": "Cannot join team after the deadline."})
-
-        team = await teams_collection.find_one({"team_id": payload.team_id})
-        if not team:
-            raise HTTPException(status_code=404, detail="Team not found")
-
-        # Check if user already a member by rollNumber
-        roll = user.get("rollNumber")
-        # Is user part of any team already?
-        if roll:
-            existing_team = await teams_collection.find_one({"members.rollNumber": roll})
-            if existing_team:
-                # If user is already in this same team, respond accordingly
-                if existing_team.get("team_id") == payload.team_id:
-                    return JSONResponse(status_code=400, content={"success": False, "message": "User already a member of the team."})
-                else:
-                    return JSONResponse(status_code=400, content={"success": False, "message": "User already belongs to another team."})
-
-        member = {
-            "name": user.get("name"),
-            "email": user.get("email"),
-            "rollNumber": roll,
-            "role": user.get("role")
-        }
-
-        res = await teams_collection.update_one({"team_id": payload.team_id}, {"$push": {"members": member}})
-        if res.matched_count == 0:
-            raise HTTPException(status_code=500, detail="Failed to add member to team")
-
-        updated_team = await teams_collection.find_one({"team_id": payload.team_id})
-        if updated_team and "_id" in updated_team:
-            updated_team["_id"] = str(updated_team["_id"])
-        updated_team = serialize_datetime_fields(updated_team) if updated_team else updated_team
-
-        return JSONResponse(status_code=200, content={"success": True, "message": "Joined team successfully.", "team": updated_team})
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error joining team: {str(e)}")
-
-
 @app.post('/api/leave_team')
 async def leave_team(payload: TeamAction, request: Request, user: dict = Depends(get_current_user)):
     """Remove the requesting user from the team if before DEADLINE_DATE."""
@@ -822,36 +692,244 @@ async def leave_team(payload: TeamAction, request: Request, user: dict = Depends
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error leaving team: {str(e)}")
 
+# Add these imports at the top of main.py
+import hashlib
+import base64
 
-@app.get('/api/leaderboard')
-async def leaderboard():
-    """Public endpoint: return top 10 teams by points (no auth required)."""
+# Add these helper functions after the existing helper functions
+
+def generate_team_qr_id(team_id: str) -> str:
+    """Generate a unique, short hashed ID for team QR code"""
+    hash_object = hashlib.sha256(team_id.encode())
+    hash_bytes = hash_object.digest()
+    # Take first 12 bytes and encode as base64 for a shorter string
+    short_hash = base64.urlsafe_b64encode(hash_bytes[:12]).decode('utf-8').rstrip('=')
+    return short_hash
+
+def generate_team_join_code(team_id: str, team_name: str) -> str:
+    """Generate a short join code for team invitation"""
+    combined = f"{team_id}-{team_name}"
+    hash_object = hashlib.sha256(combined.encode())
+    hash_bytes = hash_object.digest()
+    # Take first 6 bytes for a shorter code
+    short_code = base64.urlsafe_b64encode(hash_bytes[:6]).decode('utf-8').rstrip('=')
+    return short_code
+
+# Add these new endpoints before the leaderboard endpoint
+
+# Add this to your main.py - Replace the create_team endpoint
+
+@app.post('/api/create_team')
+async def create_team(payload: TeamCreate, request: Request, user: dict = Depends(get_current_user)):
+    """Create a new team with the requesting user as the only member."""
     if teams_collection is None:
         raise HTTPException(status_code=503, detail="Database connection not available. Please check MongoDB configuration.")
 
     try:
-        top_teams = []
-        cursor = teams_collection.find().sort("points", -1).limit(10)
-        rank = 1
-        async for team in cursor:
-            if "_id" in team:
-                team["_id"] = str(team["_id"])
+        # Deadline check: cannot create a team after DEADLINE_DATE
+        if DEADLINE_DATE:
+            try:
+                deadline_dt = datetime.fromisoformat(DEADLINE_DATE)
+            except Exception:
+                try:
+                    deadline_dt = datetime.strptime(DEADLINE_DATE, "%Y-%m-%d")
+                except Exception:
+                    deadline_dt = None
+
+            if deadline_dt and datetime.utcnow() > deadline_dt:
+                return JSONResponse(status_code=400, content={"success": False, "message": "Cannot create team after the deadline."})
+
+        # Ensure team_name uniqueness if provided
+        team_name = payload.team_name
+        if team_name:
+            existing_name = await teams_collection.find_one({"team_name": team_name})
+            if existing_name:
+                return JSONResponse(status_code=400, content={"success": False, "message": "Team name already taken. Choose a different name."})
+
+        # Prevent user from creating a team if already in another team
+        roll = user.get("rollNumber")
+        if roll:
+            already_in = await teams_collection.find_one({"members.rollNumber": roll})
+            if already_in:
+                return JSONResponse(status_code=400, content={"success": False, "message": "User already belongs to a team and cannot create another."})
+
+        team_id = str(uuid.uuid4())
+        team_name = team_name or f"Team-{team_id[:8]}"
+
+        member = {
+            "name": user.get("name"),
+            "email": user.get("email"),
+            "rollNumber": user.get("rollNumber"),
+            "role": user.get("role")
+        }
+
+        # Generate QR ID and join code
+        qr_id = generate_team_qr_id(team_id)
+        join_code = generate_team_join_code(team_id, team_name)
+
+        team = {
+            "team_id": team_id,
+            "team_name": team_name,
+            "qr_id": qr_id,
+            "join_code": join_code,
+            "members": [member],
+            "points": 0,
+            "events_participated": [],
+            "created_at": datetime.utcnow(),
+            "created_by": user.get("email")
+        }
+
+        result = await teams_collection.insert_one(team)
+        if result.inserted_id:
+            team["_id"] = str(result.inserted_id)
             team = serialize_datetime_fields(team)
-            # include rank
-            team_summary = {
-                "rank": rank,
-                "team_id": team.get("team_id"),
-                "team_name": team.get("team_name"),
-                "points": team.get("points"),
-                "members_count": len(team.get("members", [])),
-            }
-            top_teams.append(team_summary)
-            rank += 1
-
-        return JSONResponse(content={"leaderboard": top_teams})
+            return JSONResponse(status_code=201, content={"message": "Team created successfully", "team": team})
+        else:
+            raise HTTPException(status_code=500, detail="Failed to create team")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching leaderboard: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error creating team: {str(e)}")
 
+
+# Also update the /api/my_team endpoint to ensure it always returns qr_id and join_code
+@app.get('/api/my_team')
+async def get_my_team(request: Request, user: dict = Depends(get_current_user)):
+    """Get the team that the current user belongs to"""
+    if teams_collection is None:
+        raise HTTPException(status_code=503, detail="Database connection not available")
+    
+    try:
+        email = user.get("email")
+        if not email:
+            return JSONResponse(status_code=400, content={"error": "User roll number not found"})
+        
+        team = await teams_collection.find_one({"members.email": email})
+        
+        if not team:
+            return JSONResponse(content={"team": None, "message": "User not in any team"})
+        
+        # Convert ObjectId and serialize
+        if "_id" in team:
+            team["_id"] = str(team["_id"])
+        team = serialize_datetime_fields(team)
+        
+        # Generate QR code ID and join code if not present
+        if not team.get("qr_id"):
+            team["qr_id"] = generate_team_qr_id(team["team_id"])
+        if not team.get("join_code"):
+            team["join_code"] = generate_team_join_code(team["team_id"], team["team_name"])
+        
+        # Update the database with qr_id and join_code if they were missing
+        if not team.get("qr_id") or not team.get("join_code"):
+            await teams_collection.update_one(
+                {"team_id": team["team_id"]},
+                {"$set": {
+                    "qr_id": team["qr_id"],
+                    "join_code": team["join_code"]
+                }}
+            )
+        
+        return JSONResponse(content={"team": team})
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching team: {str(e)}")
+
+
+# Also update join_team_by_code to ensure consistency
+@app.post('/api/join_team_by_code')
+async def join_team_by_code(request: Request, user: dict = Depends(get_current_user)):
+    """Join a team using a join code"""
+    if teams_collection is None:
+        raise HTTPException(status_code=503, detail="Database connection not available")
+    
+    try:
+        body = await request.json()
+        join_code = body.get("join_code")
+        
+        if not join_code:
+            return JSONResponse(status_code=400, content={"success": False, "message": "Join code is required"})
+        
+        # Deadline check
+        if DEADLINE_DATE:
+            try:
+                deadline_dt = datetime.fromisoformat(DEADLINE_DATE)
+            except Exception:
+                try:
+                    deadline_dt = datetime.strptime(DEADLINE_DATE, "%Y-%m-%d")
+                except Exception:
+                    deadline_dt = None
+            
+            if deadline_dt and datetime.utcnow() > deadline_dt:
+                return JSONResponse(status_code=400, content={"success": False, "message": "Cannot join team after the deadline"})
+        
+        # Find team by join_code stored in database
+        matching_team = await teams_collection.find_one({"join_code": join_code})
+        
+        # If not found by stored join_code, try generating and matching (for backward compatibility)
+        if not matching_team:
+            teams_cursor = teams_collection.find()
+            async for team in teams_cursor:
+                team_join_code = generate_team_join_code(team["team_id"], team["team_name"])
+                if team_join_code == join_code:
+                    matching_team = team
+                    # Update the team with the join_code for future lookups
+                    await teams_collection.update_one(
+                        {"team_id": team["team_id"]},
+                        {"$set": {"join_code": join_code}}
+                    )
+                    break
+        
+        if not matching_team:
+            return JSONResponse(status_code=404, content={"success": False, "message": "Invalid join code"})
+        
+        # Check team size limit (max 3 members)
+        if len(matching_team.get("members", [])) >= 3:
+            return JSONResponse(status_code=400, content={"success": False, "message": "Team is full (maximum 3 members)"})
+        
+        # Check if user already in a team
+        email = user.get("email")
+        if email:
+            existing_team = await teams_collection.find_one({"members.email": email})
+            if existing_team:
+                if existing_team.get("team_id") == matching_team["team_id"]:
+                    return JSONResponse(status_code=400, content={"success": False, "message": "Already a member of this team"})
+                else:
+                    return JSONResponse(status_code=400, content={"success": False, "message": "Already belongs to another team"})
+        
+        # Add member to team
+        member = {
+            "name": user.get("name"),
+            "email": user.get("email"),
+            "rollNumber": user.get("rollNumber"),
+            "role": user.get("role")
+        }
+        
+        res = await teams_collection.update_one(
+            {"team_id": matching_team["team_id"]},
+            {"$push": {"members": member}}
+        )
+        
+        if res.matched_count == 0:
+            raise HTTPException(status_code=500, detail="Failed to add member to team")
+        
+        # Get updated team
+        updated_team = await teams_collection.find_one({"team_id": matching_team["team_id"]})
+        if updated_team and "_id" in updated_team:
+            updated_team["_id"] = str(updated_team["_id"])
+        updated_team = serialize_datetime_fields(updated_team) if updated_team else updated_team
+        
+        # Ensure QR and join code are present
+        if not updated_team.get("qr_id"):
+            updated_team["qr_id"] = generate_team_qr_id(updated_team["team_id"])
+        if not updated_team.get("join_code"):
+            updated_team["join_code"] = generate_team_join_code(updated_team["team_id"], updated_team["team_name"])
+        
+        return JSONResponse(status_code=200, content={"success": True, "message": "Joined team successfully", "team": updated_team})
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error joining team: {str(e)}")
+    
 @app.get('/api/leaderboard/full')
 async def leaderboard_full():
     """Return all teams with all details, sorted by points descending."""
