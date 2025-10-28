@@ -6,4 +6,4 @@ httpx
 starlette-session
 redis
 motor
-python-jose[cryptography]
+python-jose
