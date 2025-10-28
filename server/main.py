@@ -345,7 +345,7 @@ async def auth(request: Request):
             }
             request.session['user'] = processed_user
 
-            return RedirectResponse(url=f"{FRONTEND_URL}/dashboard")
+            return RedirectResponse(url=f"{FRONTEND_URL}/{processed_user['role']}")
                 
     except Exception as e:
         print(f"OAuth error details: {e}")
