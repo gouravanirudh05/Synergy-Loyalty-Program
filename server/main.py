@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from authlib.integrations.starlette_client import OAuth
-import redis
+# import redis
 from starlette_session import SessionMiddleware
 from starlette_session.backends import BackendType
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -45,23 +45,43 @@ app.add_middleware(
 if not SESSION_SECRET_KEY:
     raise ValueError("SESSION_SECRET_KEY environment variable not set!")
 
-if REDIS_URL:
-    redis_client = redis.from_url(REDIS_URL)
-    app.add_middleware(
-        SessionMiddleware,
-        cookie_name="session_id",
-        secret_key=SESSION_SECRET_KEY,
-        backend_type=BackendType.redis,
-        backend_client=redis_client,
-        https_only=True,
-        same_site="lax"
-    )
-else:
-    app.add_middleware(
-        SessionMiddleware, 
-        cookie_name="session_id",
-        secret_key=SESSION_SECRET_KEY
-    )
+# try:
+#     if REDIS_URL:
+#         redis_client = redis.from_url(REDIS_URL)
+#         # Test the connection
+#         redis_client.ping()
+#         app.add_middleware(
+#             SessionMiddleware,
+#             cookie_name="session_id",
+#             secret_key=SESSION_SECRET_KEY,
+#             backend_type=BackendType.redis,
+#             backend_client=redis_client,
+#             https_only=True,
+#             same_site="lax"
+#         )
+#         print("Successfully connected to Redis")
+#     else:
+#         raise Exception("No REDIS_URL provided")
+# except Exception as e:
+#     print(f"Failed to connect to Redis: {str(e)}")
+#     print("Falling back to basic session middleware")
+#     app.add_middleware(
+#         SessionMiddleware, 
+#         cookie_name="session_id",
+#         secret_key=SESSION_SECRET_KEY,
+#         same_site="lax",
+#         https_only=True
+#     )
+app.add_middleware(
+    SessionMiddleware, 
+    cookie_name="session_id",
+    secret_key=SESSION_SECRET_KEY,
+    same_site="lax",
+    https_only=True,  # Set to True in production with HTTPS
+    max_age=3600  # Session expires after 1 hour
+)
+
+print("Using in-memory session storage")
 
 # --- MongoDB Connection ---
 try:
@@ -258,9 +278,109 @@ async def login(request: Request):
     redirect_uri = request.url_for('auth')
     return await oauth.microsoft.authorize_redirect(request, redirect_uri)
 
+# @app.get('/api/auth')
+# async def auth(request: Request):
+#     try:
+#         code = request.query_params.get('code')
+#         if not code:
+#             return JSONResponse(status_code=400, content={"error": "No authorization code received"})
+        
+#         token_url = "https://login.microsoftonline.com/organizations/oauth2/v2.0/token"
+        
+#         async with httpx.AsyncClient() as client:
+#             token_response = await client.post(
+#                 token_url,
+#                 data={
+#                     'client_id': CLIENT_ID,
+#                     'client_secret': CLIENT_SECRET,
+#                     'code': code,
+#                     'grant_type': 'authorization_code',
+#                     'redirect_uri': str(request.url_for('auth')),
+#                     'scope': 'openid email profile User.Read'
+#                 },
+#                 headers={'Content-Type': 'application/x-www-form-urlencoded'}
+#             )
+            
+#             if token_response.status_code != 200:
+#                 print(f"Token exchange failed: {token_response.text}")
+#                 return JSONResponse(status_code=401, content={
+#                     "error": "Token exchange failed", 
+#                     "details": token_response.text
+#                 })
+            
+#             token_data = token_response.json()
+#             access_token = token_data.get('access_token')
+            
+#             if not access_token:
+#                 return JSONResponse(status_code=401, content={
+#                     "error": "No access token received", 
+#                     "details": str(token_data)
+#                 })
+            
+#             # Get user info from Microsoft Graph API
+#             async with httpx.AsyncClient() as client:
+#                 user_response = await client.get(
+#                     'https://graph.microsoft.com/v1.0/me',
+#                     headers={'Authorization': f'Bearer {access_token}'}
+#                 )
+                
+#                 if user_response.status_code != 200:
+#                     return JSONResponse(status_code=401, content={
+#                         "error": "Failed to get user info", 
+#                         "details": user_response.text
+#                     })
+                
+#                 user_data = user_response.json()
+            
+#             # Process user data
+#             email = user_data.get("mail") or user_data.get("userPrincipalName")
+
+#             if not email or not email.endswith('@iiitb.ac.in'):
+#                 return JSONResponse(
+#                     status_code=403,
+#                     content={"error": "Access Denied: Only users with an 'iiitb.ac.in' email can log in."}
+#                 )
+            
+#             name = user_data.get("displayName")
+#             roll_number = user_data.get("employeeId", "N/A")
+
+#             role = "participant"
+#             if email.lower() == ADMIN_EMAIL.lower():
+#                 role = "admin"
+#             else:
+#                 try:
+#                     is_volunteer = await volunteer_collection.find_one({"email": email.lower()})
+#                     if is_volunteer:
+#                         role = "volunteer"
+#                 except Exception as db_e:
+#                     print(f"Database error when checking volunteer status: {db_e}")
+#                     # Continue with default role if DB is unavailable
+                    
+#             # --- Create final user object and store in session ---
+#             processed_user = {
+#                 "name": name,
+#                 "email": email,
+#                 "rollNumber": roll_number,
+#                 "role": role
+#             }
+#             request.session['user'] = processed_user
+
+#             return RedirectResponse(url=f"{FRONTEND_URL}/{processed_user['role']}")
+                
+#     except Exception as e:
+#         print(f"OAuth error details: {e}")
+#         return JSONResponse(status_code=401, content={
+#             "error": "Authorization failed", 
+#             "details": str(e),
+#             "error_type": type(e).__name__
+#         })
 @app.get('/api/auth')
 async def auth(request: Request):
     try:
+        # Initialize session if it doesn't exist
+        if not hasattr(request, 'session') or request.session is None:
+            request.session = {}
+        
         code = request.query_params.get('code')
         if not code:
             return JSONResponse(status_code=400, content={"error": "No authorization code received"})
@@ -298,63 +418,66 @@ async def auth(request: Request):
                 })
             
             # Get user info from Microsoft Graph API
-            async with httpx.AsyncClient() as client:
-                user_response = await client.get(
-                    'https://graph.microsoft.com/v1.0/me',
-                    headers={'Authorization': f'Bearer {access_token}'}
-                )
-                
-                if user_response.status_code != 200:
-                    return JSONResponse(status_code=401, content={
-                        "error": "Failed to get user info", 
-                        "details": user_response.text
-                    })
-                
-                user_data = user_response.json()
+            user_response = await client.get(
+                'https://graph.microsoft.com/v1.0/me',
+                headers={'Authorization': f'Bearer {access_token}'}
+            )
             
-            # Process user data
-            email = user_data.get("mail") or user_data.get("userPrincipalName")
-
-            if not email or not email.endswith('@iiitb.ac.in'):
-                return JSONResponse(
-                    status_code=403,
-                    content={"error": "Access Denied: Only users with an 'iiitb.ac.in' email can log in."}
-                )
+            if user_response.status_code != 200:
+                return JSONResponse(status_code=401, content={
+                    "error": "Failed to get user info", 
+                    "details": user_response.text
+                })
             
-            name = user_data.get("displayName")
-            roll_number = user_data.get("employeeId", "N/A")
+            user_data = user_response.json()
+        
+        # Process user data
+        email = user_data.get("mail") or user_data.get("userPrincipalName")
 
-            role = "participant"
-            if email.lower() == ADMIN_EMAIL.lower():
-                role = "admin"
-            else:
-                try:
-                    is_volunteer = await volunteer_collection.find_one({"email": email.lower()})
-                    if is_volunteer:
-                        role = "volunteer"
-                except Exception as db_e:
-                    print(f"Database error when checking volunteer status: {db_e}")
-                    # Continue with default role if DB is unavailable
-                    
-            # --- Create final user object and store in session ---
-            processed_user = {
-                "name": name,
-                "email": email,
-                "rollNumber": roll_number,
-                "role": role
-            }
-            request.session['user'] = processed_user
+        if not email or not email.endswith('@iiitb.ac.in'):
+            return JSONResponse(
+                status_code=403,
+                content={"error": "Access Denied: Only users with an 'iiitb.ac.in' email can log in."}
+            )
+        
+        name = user_data.get("displayName")
+        roll_number = user_data.get("employeeId", "N/A")
 
-            return RedirectResponse(url=f"{FRONTEND_URL}/{processed_user['role']}")
+        role = "participant"
+        if email.lower() == ADMIN_EMAIL.lower():
+            role = "admin"
+        else:
+            try:
+                is_volunteer = await volunteer_collection.find_one({"email": email.lower()})
+                if is_volunteer:
+                    role = "volunteer"
+            except Exception as db_e:
+                print(f"Database error when checking volunteer status: {db_e}")
+                # Continue with default role if DB is unavailable
                 
+        # Create final user object and store in session
+        processed_user = {
+            "name": name,
+            "email": email,
+            "rollNumber": roll_number,
+            "role": role
+        }
+        
+        # Clear any existing session data and set new user
+        request.session.clear()
+        request.session['user'] = processed_user
+
+        return RedirectResponse(url=f"{FRONTEND_URL}/{processed_user['role']}")
+            
     except Exception as e:
         print(f"OAuth error details: {e}")
+        import traceback
+        traceback.print_exc()
         return JSONResponse(status_code=401, content={
             "error": "Authorization failed", 
             "details": str(e),
             "error_type": type(e).__name__
         })
-
 @app.get('/api/health')
 async def health_check():
     """Simple health check endpoint"""
