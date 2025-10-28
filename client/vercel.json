@@ -1,16 +1,12 @@
 {
-    "rewrites": [
-        {
-            "source": "/(.*)",
-            "destination": "/index.html"
-        }
-    ],
-    "routes": [
-        {
-            "src": "/[^.]+",
-            "dest": "/",
-            "status": 200
-        }
-    ],
-    "framework": "vite"
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/"
+    }
+  ],
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "framework": "vite",
+  "cleanUrls": true
 }
