@@ -2,9 +2,7 @@ from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from authlib.integrations.starlette_client import OAuth
-# import redis
-from starlette_session import SessionMiddleware
-from starlette_session.backends import BackendType
+from starlette.middleware.sessions import SessionMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from typing import List, Optional
 from pydantic import BaseModel
@@ -45,40 +43,13 @@ app.add_middleware(
 if not SESSION_SECRET_KEY:
     raise ValueError("SESSION_SECRET_KEY environment variable not set!")
 
-# try:
-#     if REDIS_URL:
-#         redis_client = redis.from_url(REDIS_URL)
-#         # Test the connection
-#         redis_client.ping()
-#         app.add_middleware(
-#             SessionMiddleware,
-#             cookie_name="session_id",
-#             secret_key=SESSION_SECRET_KEY,
-#             backend_type=BackendType.redis,
-#             backend_client=redis_client,
-#             https_only=True,
-#             same_site="lax"
-#         )
-#         print("Successfully connected to Redis")
-#     else:
-#         raise Exception("No REDIS_URL provided")
-# except Exception as e:
-#     print(f"Failed to connect to Redis: {str(e)}")
-#     print("Falling back to basic session middleware")
-#     app.add_middleware(
-#         SessionMiddleware, 
-#         cookie_name="session_id",
-#         secret_key=SESSION_SECRET_KEY,
-#         same_site="lax",
-#         https_only=True
-#     )
 app.add_middleware(
-    SessionMiddleware, 
-    cookie_name="session_id",
+    SessionMiddleware,
     secret_key=SESSION_SECRET_KEY,
-    same_site="lax",
-    https_only=True,  # Set to True in production with HTTPS
-    max_age=3600  # Session expires after 1 hour
+    session_cookie="session_id",
+    max_age=3600,  # Session expires after 1 hour
+    same_site="none",  # Changed from 'lax' to 'none' for cross-site OAuth redirects
+    https_only=True
 )
 
 print("Using in-memory session storage")
@@ -466,6 +437,9 @@ async def auth(request: Request):
         # Clear any existing session data and set new user
         request.session.clear()
         request.session['user'] = processed_user
+        
+        print(f"✅ User authenticated successfully: {email} (Role: {role})")
+        print(f"Session data set: {request.session.get('user')}")
 
         return RedirectResponse(url=f"{FRONTEND_URL}/{processed_user['role']}")
             
@@ -485,9 +459,17 @@ async def health_check():
 
 @app.get('/api/user/profile')
 async def user_profile(request: Request):
+    print(f"📋 Profile request received")
+    print(f"Session exists: {hasattr(request, 'session')}")
+    if hasattr(request, 'session'):
+        print(f"Session data: {dict(request.session)}")
+    
     user = request.session.get('user')
     if user:
+        print(f"✅ User found in session: {user.get('email')}")
         return JSONResponse(content=user)
+    
+    print(f"❌ No user in session - returning 401")
     return JSONResponse(status_code=401, content={"error": "User not authenticated"})
 
 @app.get('/api/logout')
