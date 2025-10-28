@@ -3,7 +3,7 @@ uvicorn
 python-dotenv
 authlib
 httpx
-starlette-session
 redis
 motor
 python-jose
+starlette
