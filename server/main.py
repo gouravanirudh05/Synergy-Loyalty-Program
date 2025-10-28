@@ -323,13 +323,13 @@ async def auth(request: Request):
             
             name = user_data.get("displayName")
             roll_number = user_data.get("employeeId", "N/A")
-            
+
             role = "participant"
             if email.lower() == ADMIN_EMAIL.lower():
                 role = "admin"
             else:
                 try:
-                    is_volunteer = await volunteer_collection.find_one({"rollNumber": roll_number})
+                    is_volunteer = await volunteer_collection.find_one({"email": email.lower()})
                     if is_volunteer:
                         role = "volunteer"
                 except Exception as db_e:
