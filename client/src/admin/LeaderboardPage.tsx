@@ -104,9 +104,9 @@ const LeaderboardPage = () => {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-6">
                       <div className="flex items-center space-x-3">
-                        {getRankIcon(rank)}
+                        {/* {getRankIcon(rank)} */}
                         <span className={`text-3xl font-bold ${rank <= 3 ? 'text-white' : 'text-cyan-400'}`}>
-                          #{rank}
+                          {rank}.
                         </span>
                       </div>
                       
@@ -114,9 +114,9 @@ const LeaderboardPage = () => {
                         <h3 className="text-2xl font-bold text-white mb-1">
                           {team.name}
                         </h3>
-                        <p className="text-gray-400 font-mono text-sm">
+                        {/* <p className="text-gray-400 font-mono text-sm">
                           Team {team.name}
-                        </p>
+                        </p> */}
                       </div>
                     </div>
 

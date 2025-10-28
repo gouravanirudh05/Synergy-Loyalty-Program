@@ -120,10 +120,6 @@ const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ user, team, onLogout 
                 <Mail className="w-4 h-4 flex-shrink-0" />
                 <span className="truncate">{user.email}</span>
               </div>
-              <div className="flex items-center gap-2 text-slate-400">
-                <Hash className="w-4 h-4 flex-shrink-0" />
-                <span>{user.rollNumber}</span>
-              </div>
             </div>
           </div>
 
@@ -153,7 +149,7 @@ const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ user, team, onLogout 
                     >
                       <div className="w-1.5 h-1.5 rounded-full bg-cyan-500"></div>
                       <span className="flex-1 truncate">{member.name}</span>
-                      {member.rollNumber === user.rollNumber && (
+                      {member.email === user.email && (
                         <span className="text-cyan-400 font-medium">(You)</span>
                       )}
                     </div>

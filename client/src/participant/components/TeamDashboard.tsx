@@ -141,13 +141,13 @@ const TeamDashboard: React.FC<TeamDashboardProps> = ({ team, onTeamLeft }) => {
                       </>
                     )}
                   </button>
-                  <button
+                  {/* <button
                     onClick={handleShareInvite}
                     className="flex items-center gap-2 px-4 py-3 bg-pink-600 hover:bg-pink-700 rounded-lg transition-all duration-200 font-semibold"
                   >
                     <Share2 className="w-5 h-5" />
                     <span className="hidden sm:inline">Share</span>
-                  </button>
+                  </button> */}
                 </div>
               </div>
             </div>
@@ -230,7 +230,7 @@ const TeamDashboard: React.FC<TeamDashboardProps> = ({ team, onTeamLeft }) => {
             </div>
           ) : (
             <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
-              <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+              {/* <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
                   <Users className="w-5 h-5 text-purple-400" />
                 </div>
@@ -253,7 +253,7 @@ const TeamDashboard: React.FC<TeamDashboardProps> = ({ team, onTeamLeft }) => {
                     <Copy className="w-5 h-5" />
                   )}
                 </button>
-              </div>
+              </div> */}
             </div>
           )}
         </div>
@@ -281,9 +281,6 @@ const TeamDashboard: React.FC<TeamDashboardProps> = ({ team, onTeamLeft }) => {
               <div className="flex-1 min-w-0">
                 <div className="font-semibold text-white truncate">
                   {member.name}
-                </div>
-                <div className="text-sm text-slate-400 truncate">
-                  {member.rollNumber}
                 </div>
               </div>
               {index === 0 && (

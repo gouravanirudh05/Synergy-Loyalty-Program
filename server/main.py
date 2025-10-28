@@ -15,6 +15,7 @@ import json
 from jose import jwt, JWTError
 from datetime import datetime, timedelta
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import Query
 
 # Import configurations and models
 from config import (
@@ -636,6 +637,17 @@ async def scan_qr(
         "points_awarded": event["points"],
         "team_points": new_points
     }
+@app.get("/api/events")
+async def get_events(ids: str = Query(...)):
+    try:
+        id_list = ids.split(",")
+        events = await event_collection.find(
+            {"event_id": {"$in": id_list}},
+            {"_id": 0, "event_id": 1, "event_name": 1, "points": 1}
+        ).to_list(None)
+        return events
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # --- Participant Management ---
 @app.post('/api/leave_team')
@@ -666,17 +678,17 @@ async def leave_team(payload: TeamAction, request: Request, user: dict = Depends
         if not team:
             raise HTTPException(status_code=404, detail="Team not found")
 
-        roll = user.get("rollNumber")
+        email = user.get("email")
         found = False
         for m in team.get("members", []):
-            if m.get("rollNumber") == roll:
+            if m.get("email") == email:
                 found = True
                 break
 
         if not found:
             return JSONResponse(status_code=400, content={"success": False, "message": "User is not a member of this team."})
 
-        res = await teams_collection.update_one({"team_id": payload.team_id}, {"$pull": {"members": {"rollNumber": roll}}})
+        res = await teams_collection.update_one({"team_id": payload.team_id}, {"$pull": {"members": {"email": email}}})
         if res.matched_count == 0:
             raise HTTPException(status_code=500, detail="Failed to remove member from team")
 
@@ -747,9 +759,9 @@ async def create_team(payload: TeamCreate, request: Request, user: dict = Depend
                 return JSONResponse(status_code=400, content={"success": False, "message": "Team name already taken. Choose a different name."})
 
         # Prevent user from creating a team if already in another team
-        roll = user.get("rollNumber")
-        if roll:
-            already_in = await teams_collection.find_one({"members.rollNumber": roll})
+        email = user.get("email")
+        if email:
+            already_in = await teams_collection.find_one({"members.email": email})
             if already_in:
                 return JSONResponse(status_code=400, content={"success": False, "message": "User already belongs to a team and cannot create another."})
 
@@ -930,19 +942,22 @@ async def join_team_by_code(request: Request, user: dict = Depends(get_current_u
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error joining team: {str(e)}")
     
-@app.get('/api/leaderboard/full')
+@app.get("/api/leaderboard/full")
 async def leaderboard_full():
-    """Return all teams with all details, sorted by points descending."""
+    """Return all teams with only name and points, sorted by points descending."""
     if teams_collection is None:
-        raise HTTPException(status_code=503, detail="Database connection not available. Please check MongoDB configuration.")
+        raise HTTPException(
+            status_code=503,
+            detail="Database connection not available. Please check MongoDB configuration."
+        )
     try:
         teams = []
-        cursor = teams_collection.find().sort("points", -1)
+        cursor = teams_collection.find({}, {"_id": 1, "team_name": 1, "points": 1}).sort("points", -1)
         async for team in cursor:
-            if "_id" in team:
-                team["_id"] = str(team["_id"])
-            team = serialize_datetime_fields(team)
-            teams.append(team)
+            team["_id"] = str(team["_id"])
+            team["name"] = team.pop("team_name") 
+            if(team["points"]>0):
+                teams.append(team)
         return JSONResponse(content={"teams": teams})
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching teams: {str(e)}")
