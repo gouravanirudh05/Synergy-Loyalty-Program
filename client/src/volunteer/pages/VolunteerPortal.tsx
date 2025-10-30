@@ -1,12 +1,46 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import EventSelector from "../components/EventSelector";
 import QRScanner from "../components/QRScanner";
 import { useNavigate } from "react-router-dom";
+
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
 
 const VolunteerPortal: React.FC = () => {
   const [eventToken, setEventToken] = useState("");
   const [eventName, setEventName] = useState("");
   const navigate = useNavigate();
+
+  useEffect(() => {
+    handleSessionEstablishment();
+  }, []);
+
+  const handleSessionEstablishment = async () => {
+    // Check if we have session_data in URL (from OAuth redirect)
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionData = urlParams.get('session_data');
+    
+    if (sessionData) {
+      try {
+        // Decode the user data
+        const userData = JSON.parse(decodeURIComponent(sessionData));
+        
+        // Call the establish session endpoint
+        await fetch(`${BACKEND_URL}/api/session/establish`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ user_data: userData })
+        });
+        
+        // Clean up URL (remove session_data parameter)
+        window.history.replaceState({}, '', window.location.pathname);
+      } catch (err) {
+        console.error('Failed to establish session:', err);
+      }
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white">
