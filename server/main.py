@@ -54,7 +54,7 @@ app.add_middleware(
     session_cookie="session_id",
     max_age=3600,  # Session expires after 1 hour
     same_site="none", 
-    https_only=True
+    secure=True
 )
 
 # --- MongoDB Connection ---
