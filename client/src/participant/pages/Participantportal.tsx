@@ -28,8 +28,44 @@ const ParticipantPortal: React.FC = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetchUserAndTeam();
+    handleSessionAndFetchData();
   }, []);
+
+  const handleSessionAndFetchData = async () => {
+    try {
+      // Check if we have session_data in URL (from OAuth redirect)
+      const urlParams = new URLSearchParams(window.location.search);
+      const sessionData = urlParams.get('session_data');
+      
+      if (sessionData) {
+        try {
+          // Decode the user data
+          const userData = JSON.parse(decodeURIComponent(sessionData));
+          
+          // Call the establish session endpoint
+          await fetch(`${BACKEND_URL}/api/session/establish`, {
+            method: 'POST',
+            credentials: 'include', // Important for cookies
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ user_data: userData })
+          });
+          
+          // Clean up URL (remove session_data parameter)
+          window.history.replaceState({}, '', window.location.pathname);
+        } catch (err) {
+          console.error('Failed to establish session:', err);
+        }
+      }
+      
+      // Now fetch user and team data normally
+      await fetchUserAndTeam();
+    } catch (error) {
+      console.error('Error in session handling:', error);
+      setLoading(false);
+    }
+  };
 
   const fetchUserAndTeam = async () => {
     try {
