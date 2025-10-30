@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from authlib.integrations.starlette_client import OAuth
+# import redis
 from starlette.middleware.sessions import SessionMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from typing import List, Optional
@@ -14,6 +15,10 @@ from jose import jwt, JWTError
 from datetime import datetime, timedelta
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi import Query
+import os
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+import hashlib
+import base64
 
 # Import configurations and models
 from config import (
@@ -29,17 +34,7 @@ app = FastAPI()
 
 security = HTTPBearer()
 
-# --- CORS Configuration ---
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        FRONTEND_URL
-    ],
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
-)
-
+# --- Session Middleware MUST come before CORS for cookies to work ---
 if not SESSION_SECRET_KEY:
     raise ValueError("SESSION_SECRET_KEY environment variable not set!")
 
@@ -48,11 +43,21 @@ app.add_middleware(
     secret_key=SESSION_SECRET_KEY,
     session_cookie="session_id",
     max_age=3600,  # Session expires after 1 hour
-    same_site="none",  # Changed from 'lax' to 'none' for cross-site OAuth redirects
-    https_only=True
+    same_site="none",  # Required for cross-origin cookies
+    https_only=True  # Required for production (HTTPS)
 )
 
-print("Using in-memory session storage")
+# --- CORS Configuration ---
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        FRONTEND_URL,
+    ],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+    expose_headers=["*"]
+)
 
 # --- MongoDB Connection ---
 try:
@@ -178,6 +183,47 @@ def serialize_datetime_fields(obj):
 ALGORITHM = "HS256"
 TOKEN_EXPIRE_MINUTES = 180
 
+# --- AES-GCM Encryption/Decryption for secret_code ---
+def get_encryption_key() -> bytes:
+    """Derive a 32-byte AES key from SECRET_KEY using SHA-256"""
+    return hashlib.sha256(SECRET_KEY.encode()).digest()
+
+def encrypt_secret_code(plain_text: str) -> str:
+    """
+    Encrypt plain_text using AES-GCM with a 256-bit key derived from SECRET_KEY.
+    Returns urlsafe-base64 encoded string (iv || ciphertext_with_tag).
+    """
+    if not plain_text:
+        return ""
+    
+    key = get_encryption_key()
+    aesgcm = AESGCM(key)
+    iv = os.urandom(12)  # 96-bit nonce for AES-GCM
+    ciphertext = aesgcm.encrypt(iv, plain_text.encode("utf-8"), None)
+    # Combine iv + ciphertext (ciphertext includes the authentication tag)
+    combined = iv + ciphertext
+    return base64.urlsafe_b64encode(combined).decode("utf-8")
+
+def decrypt_secret_code(encrypted_text: str) -> str:
+    """
+    Decrypt encrypted_text using AES-GCM.
+    Returns the original plaintext.
+    """
+    if not encrypted_text:
+        return ""
+    
+    try:
+        key = get_encryption_key()
+        aesgcm = AESGCM(key)
+        combined = base64.urlsafe_b64decode(encrypted_text.encode("utf-8"))
+        iv = combined[:12]  # First 12 bytes
+        ciphertext = combined[12:]  # Rest is ciphertext + tag
+        plaintext = aesgcm.decrypt(iv, ciphertext, None)
+        return plaintext.decode("utf-8")
+    except Exception as e:
+        print(f"Decryption error: {e}")
+        return ""
+
 def create_volunteer_token(volunteer_email: str, event_id: str):
     payload = {
         "sub": volunteer_email,
@@ -193,24 +239,6 @@ def verify_volunteer_token(token: str):
     except JWTError:
         return None
 
-
-def sanitize_event(event: dict):
-    """Remove sensitive fields from event documents before returning to clients."""
-    if not event:
-        return event
-    # Remove secret code
-    event.pop("secret_code", None)
-    # Remove creator/updater emails if present
-    event.pop("created_by", None)
-    event.pop("updated_by", None)
-    return event
-
-
-def sanitize_volunteer(vol: dict):
-    if not vol:
-        return vol
-    vol.pop("email", None)
-    return vol
 
 async def get_current_user(request: Request):
     user = request.session.get('user')
@@ -438,10 +466,13 @@ async def auth(request: Request):
         request.session.clear()
         request.session['user'] = processed_user
         
-        print(f"✅ User authenticated successfully: {email} (Role: {role})")
-        print(f"Session data set: {request.session.get('user')}")
+        # For cross-domain deployments, also include user data in redirect URL
+        # Frontend will extract this and make a proper authenticated request
+        import urllib.parse
+        user_data = urllib.parse.quote(json.dumps(processed_user))
+        redirect_url = f"{FRONTEND_URL}/{processed_user['role']}?session_data={user_data}"
 
-        return RedirectResponse(url=f"{FRONTEND_URL}/{processed_user['role']}")
+        return RedirectResponse(url=redirect_url)
             
     except Exception as e:
         print(f"OAuth error details: {e}")
@@ -457,19 +488,39 @@ async def health_check():
     """Simple health check endpoint"""
     return JSONResponse(content={"status": "healthy", "message": "Server is running"})
 
+@app.post('/api/session/establish')
+async def establish_session(request: Request):
+    """
+    Establish session from OAuth callback data.
+    Frontend calls this after OAuth redirect with user data.
+    """
+    try:
+        body = await request.json()
+        user_data = body.get('user_data')
+        
+        if not user_data:
+            raise HTTPException(status_code=400, detail="No user data provided")
+        
+        # Validate user data structure
+        required_fields = ['name', 'email', 'rollNumber', 'role']
+        if not all(field in user_data for field in required_fields):
+            raise HTTPException(status_code=400, detail="Invalid user data")
+        
+        # Store in session
+        request.session['user'] = user_data
+        
+        return JSONResponse(content={
+            "message": "Session established successfully",
+            "user": user_data
+        })
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to establish session: {str(e)}")
+
 @app.get('/api/user/profile')
 async def user_profile(request: Request):
-    print(f"📋 Profile request received")
-    print(f"Session exists: {hasattr(request, 'session')}")
-    if hasattr(request, 'session'):
-        print(f"Session data: {dict(request.session)}")
-    
     user = request.session.get('user')
     if user:
-        print(f"✅ User found in session: {user.get('email')}")
         return JSONResponse(content=user)
-    
-    print(f"❌ No user in session - returning 401")
     return JSONResponse(status_code=401, content={"error": "User not authenticated"})
 
 @app.get('/api/logout')
@@ -489,7 +540,7 @@ async def create_event(request: Request, event_data: EventCreate, admin_user: di
             "event_id": event_id,
             "event_name": event_data.event_name,
             "points": event_data.points,
-            "secret_code":event_data.secret_code,
+            "secret_code": event_data.secret_code,  # Store plain text in DB
             "expired": False,
             "participants": 0,
         }
@@ -499,7 +550,8 @@ async def create_event(request: Request, event_data: EventCreate, admin_user: di
             event["_id"] = str(result.inserted_id)
             # Serialize datetime fields
             event = serialize_datetime_fields(event)
-            event = sanitize_event(event)
+            # Encrypt secret_code before sending to frontend
+            event["secret_code"] = encrypt_secret_code(event.get("secret_code", ""))
             return JSONResponse(content={"message": "Event created successfully", "event": event})
         else:
             raise HTTPException(status_code=500, detail="Failed to create event")
@@ -519,7 +571,8 @@ async def get_events(request: Request, user: dict = Depends(get_current_user)):
             event["_id"] = str(event["_id"])
             # Serialize datetime fields
             event = serialize_datetime_fields(event)
-            event = sanitize_event(event)
+            # Encrypt secret_code before sending to frontend
+            event["secret_code"] = encrypt_secret_code(event.get("secret_code", ""))
             events.append(event)
         return JSONResponse(content={"events": events})
     except Exception as e:
@@ -537,7 +590,9 @@ async def update_event(event_id: str, event_data: EventUpdate, request: Request,
         if event_data.expired is not None:
             update_data["expired"] = event_data.expired
         if event_data.secret_code is not None:
-            update_data["secret_code"] = event_data.secret_code
+            # Decrypt the incoming encrypted secret_code from client before storing
+            decrypted_code = decrypt_secret_code(event_data.secret_code)
+            update_data["secret_code"] = decrypted_code if decrypted_code else event_data.secret_code
         
         if not update_data:
             raise HTTPException(status_code=400, detail="No fields to update")
@@ -559,7 +614,8 @@ async def update_event(event_id: str, event_data: EventUpdate, request: Request,
             updated_event["_id"] = str(updated_event["_id"])
             # Serialize datetime fields
             updated_event = serialize_datetime_fields(updated_event)
-            updated_event = sanitize_event(updated_event)
+            # Encrypt secret_code before sending to frontend
+            updated_event["secret_code"] = encrypt_secret_code(updated_event.get("secret_code", ""))
         
         return JSONResponse(content={"message": "Event updated successfully", "event": updated_event})
     except HTTPException:
@@ -605,7 +661,6 @@ async def add_volunteer(volunteer_data: VolunteerCreate, request: Request, admin
             volunteer["_id"] = str(result.inserted_id)
             # Serialize datetime fields
             volunteer = serialize_datetime_fields(volunteer)
-            volunteer = sanitize_volunteer(volunteer)
             return JSONResponse(content={"message": "Volunteer added successfully", "volunteer": volunteer})
         else:
             raise HTTPException(status_code=500, detail="Failed to add volunteer")
@@ -624,7 +679,6 @@ async def get_volunteers(request: Request, user: dict = Depends(require_admin_or
             volunteer["_id"] = str(volunteer["_id"])
             # Serialize datetime fields
             volunteer = serialize_datetime_fields(volunteer)
-            volunteer = sanitize_volunteer(volunteer)
             volunteers.append(volunteer)
         return JSONResponse(content={"volunteers": volunteers})
     except Exception as e:
@@ -655,7 +709,6 @@ async def get_volunteer(roll_number: str, request: Request, user: dict = Depends
         
         volunteer["_id"] = str(volunteer["_id"])
         volunteer = serialize_datetime_fields(volunteer)
-        volunteer = sanitize_volunteer(volunteer)
         return JSONResponse(content={"volunteer": volunteer})
     except HTTPException:
         raise
