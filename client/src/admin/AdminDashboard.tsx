@@ -40,11 +40,33 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
 
   // Load data on component mount
   useEffect(() => {
+    handleSessionEstablishment();
     loadEvents();
     if (currentView === 'view-volunteers') {
       loadVolunteers();
     }
   }, [currentView]);
+
+  const handleSessionEstablishment = async () => {
+    // Check if we have session_data in URL (from OAuth redirect)
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionData = urlParams.get('session_data');
+    
+    if (sessionData) {
+      try {
+        // Decode the user data
+        const userData = JSON.parse(decodeURIComponent(sessionData));
+        
+        // Call the establish session endpoint
+        await apiService.establishSession(userData);
+        
+        // Clean up URL (remove session_data parameter)
+        window.history.replaceState({}, '', window.location.pathname);
+      } catch (err) {
+        console.error('Failed to establish session:', err);
+      }
+    }
+  };
 
   const loadEvents = async () => {
     try {
