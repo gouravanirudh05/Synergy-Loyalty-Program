@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, Star, AlertTriangle, Edit, Trash2, Users } from 'lucide-react';
+import { Calendar, Star, AlertTriangle, Edit, Trash2, Users,Eye, EyeOff } from 'lucide-react';
 
 export interface Event {
   event_id: string;
@@ -21,6 +21,8 @@ interface EventCardProps {
 }
 
 const EventCard: React.FC<EventCardProps> = ({ event, onEdit, onDelete }) => {
+  const [showSecret, setShowSecret] = React.useState(false);
+  
   return (
     <div className={`cyber-card p-4 md:p-6 ${event.expired ? 'cyber-card-expired' : 'cyber-card-active'}`}>
       <div className="flex items-start justify-between mb-4">
@@ -62,9 +64,22 @@ const EventCard: React.FC<EventCardProps> = ({ event, onEdit, onDelete }) => {
         </div>
       </div>
 
-      <h3 className="text-lg md:text-xl font-bold text-white mb-3 tracking-wide break-words">
-        {event.secret_code}
-      </h3>
+      <div className="mb-3">
+        <label className="text-xs text-slate-400 uppercase tracking-wide mb-1 block">Secret Code</label>
+        <div className="flex items-center gap-2">
+          <div className="flex-1 font-mono text-sm md:text-lg px-3 py-2 rounded-md bg-slate-900/30 text-white break-all select-all">
+            {showSecret ? event.secret_code : '•'.repeat(Math.max(4, event.secret_code.length))}
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowSecret((s:boolean)=> !s)}
+            aria-label={showSecret ? 'Hide secret code' : 'Show secret code'}
+            className="cyber-button-secondary p-2 rounded-md flex items-center justify-center"
+          >
+            {showSecret ? <EyeOff size={16} /> : <Eye size={16} />}
+          </button>
+        </div>
+      </div>
       
       <div className="flex flex-col sm:flex-row gap-2">
         <button
