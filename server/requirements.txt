@@ -7,3 +7,4 @@ starlette-session
 redis
 motor
 python-jose
+cryptography
