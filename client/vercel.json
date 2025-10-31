@@ -5,7 +5,9 @@
       "destination": "/"
     }
   ],
-  "buildCommand": "npm run build",
+      "headers": {
+        "Access-Control-Allow-Origin": "*"
+      },
   "outputDirectory": "dist",
   "framework": "vite",
   "cleanUrls": true

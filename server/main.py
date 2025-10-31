@@ -35,11 +35,16 @@ app = FastAPI()
 security = HTTPBearer()
 
 # --- CORS Configuration ---
+# Support multiple frontend origins via FRONTEND_URLS env var (comma-separated)
+raw_frontend_urls = os.getenv("FRONTEND_URLS") or FRONTEND_URL
+allowed_origins = []
+if raw_frontend_urls:
+    allowed_origins = [u.strip() for u in raw_frontend_urls.split(",") if u.strip()]
+print(f"CORS allowed origins: {allowed_origins}")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        FRONTEND_URL
-    ],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
