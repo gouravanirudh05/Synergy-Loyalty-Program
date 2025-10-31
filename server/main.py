@@ -32,23 +32,26 @@ from models import User, Event, Volunteer
 
 app = FastAPI()
 
-security = HTTPBearer()
-
 # --- CORS Configuration ---
-# Support multiple frontend origins via FRONTEND_URLS env var (comma-separated)
-raw_frontend_urls = os.getenv("FRONTEND_URLS") or FRONTEND_URL
-allowed_origins = []
-if raw_frontend_urls:
-    allowed_origins = [u.strip() for u in raw_frontend_urls.split(",") if u.strip()]
-print(f"CORS allowed origins: {allowed_origins}")
+print(f"Configuring CORS middleware first...")
+print(f"FRONTEND_URL from config = {FRONTEND_URL}")
+allowed_origins = [FRONTEND_URL]
+if FRONTEND_URL != "http://localhost:5173":
+    allowed_origins.append("http://localhost:5173")
+print(f"Final allowed origins: {allowed_origins}")
 
+# CORS middleware MUST be the first middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=3600,
 )
+
+security = HTTPBearer()
 
 if not SESSION_SECRET_KEY:
     raise ValueError("SESSION_SECRET_KEY environment variable not set!")
@@ -589,37 +592,58 @@ async def health_check():
 
 @app.get('/api/debug/session')
 async def debug_session(request: Request):
-    """Temporary debug endpoint.
-
-    Returns limited request headers, cookies and the current session contents.
-    Only enabled when environment variable ENABLE_DEBUG is set to 'true'.
-    """
-    if os.getenv("ENABLE_DEBUG", "false").lower() != "true":
-        # keep hidden unless explicitly enabled
-        raise HTTPException(status_code=404, detail="Not found")
-
-    # Return limited headers to avoid leaking sensitive data
-    headers = {
-        "origin": request.headers.get("origin"),
-        "referer": request.headers.get("referer"),
-        "host": request.headers.get("host"),
-        "user-agent": request.headers.get("user-agent")
-    }
-
-    cookies = dict(request.cookies) if request.cookies else {}
-
-    session_contents = None
+    """Debug endpoint to inspect request data during CORS/cookie debugging"""
+    
+    origin = request.headers.get("origin", "NO ORIGIN")
+    print("\n=== Debug Session Request ===")
+    print(f"Request origin: {origin}")
+    print(f"Configured FRONTEND_URL: {FRONTEND_URL}")
+    print(f"Origin in allowed_origins: {origin in allowed_origins}")
+    print("\nRequest headers:")
+    for k, v in request.headers.items():
+        print(f"  {k}: {v}")
+    
+    print("\nRequest cookies:")
+    for k, v in request.cookies.items():
+        print(f"  {k}: {v}")
+    
+    session_data = None
     try:
-        session_contents = dict(request.session) if hasattr(request, "session") and request.session is not None else {}
-    except Exception:
-        session_contents = {"error": "unable to read session"}
+        if hasattr(request, "session"):
+            session_data = dict(request.session) if request.session else {}
+            print("\nSession data:", session_data)
+        else:
+            print("\nNo session attribute on request")
+            session_data = {"error": "No session attribute found"}
+    except Exception as e:
+        print(f"\nError reading session: {str(e)}")
+        session_data = {"error": f"Unable to read session: {str(e)}"}
 
-    return JSONResponse(content={
-        "headers": headers,
-        "cookies": cookies,
-        "session": session_contents,
-        "has_user": bool(session_contents and session_contents.get("user"))
+    response = JSONResponse(content={
+        "timestamp": datetime.utcnow().isoformat(),
+        "request": {
+            "origin": origin,
+            "headers": dict(request.headers),
+            "cookies": dict(request.cookies)
+        },
+        "server": {
+            "frontend_url": FRONTEND_URL,
+            "allowed_origins": allowed_origins,
+            "origin_allowed": origin in allowed_origins
+        },
+        "session": {
+            "data": session_data,
+            "exists": hasattr(request, "session"),
+            "has_user": bool(session_data and session_data.get("user"))
+        }
     })
+
+    print("\nResponse headers that will be sent:")
+    for k, v in response.headers.items():
+        print(f"  {k}: {v}")
+    print("=== End Debug Session ===\n")
+    
+    return response
 
 @app.get('/api/user/profile')
 async def user_profile(request: Request):
