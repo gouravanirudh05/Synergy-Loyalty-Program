@@ -34,64 +34,21 @@ app = FastAPI()
 
 # --- CORS Configuration ---
 print(f"Configuring CORS middleware first...")
+print(f"FRONTEND_URL from config = {FRONTEND_URL}")
+allowed_origins = [FRONTEND_URL]
+if FRONTEND_URL != "http://localhost:5173":
+    allowed_origins.append("http://localhost:5173")
+print(f"Final allowed origins: {allowed_origins}")
 
-# Normalize FRONTEND_URL by removing trailing slash
-normalized_frontend_url = FRONTEND_URL.rstrip('/')
-print(f"Normalized FRONTEND_URL = {normalized_frontend_url}")
-
-# Define allowed origins (without trailing slashes)
-allowed_origins = [
-    normalized_frontend_url,          # Production frontend
-    "http://localhost:5173",         # Local development
-    "https://localhost:5173"         # Local development with HTTPS
-]
-print(f"Configured allowed origins: {allowed_origins}")
-
-@app.middleware("http")
-async def cors_middleware(request: Request, call_next):
-    """Handle CORS before any other middleware"""
-    origin = request.headers.get("origin")
-    
-    # Log detailed debugging info
-    print(f"\n=== CORS Debug ===")
-    print(f"Request origin: {origin}")
-    print(f"Allowed origins: {allowed_origins}")
-    print(f"Origin allowed: {origin in allowed_origins}")
-    print(f"Method: {request.method}")
-    print("=== End CORS Debug ===\n")
-    
-    if request.method == "OPTIONS":
-        # Handle preflight
-        if origin in allowed_origins:
-            headers = {
-                "Access-Control-Allow-Origin": origin,
-                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-                "Access-Control-Allow-Headers": "*",
-                "Access-Control-Allow-Credentials": "true",
-                "Access-Control-Max-Age": "3600",
-                "Vary": "Origin"
-            }
-            return JSONResponse(content={}, status_code=200, headers=headers)
-        return JSONResponse(content={}, status_code=200)
-    
-    # Handle actual request
-    response = await call_next(request)
-    
-    if origin in allowed_origins:
-        response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["Vary"] = "Origin"
-    
-    return response
-
-# Also keep the CORSMiddleware as a fallback, but with normalized URL
+# CORS middleware MUST be the first middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],
+    max_age=3600,
 )
 
 security = HTTPBearer()
@@ -99,23 +56,13 @@ security = HTTPBearer()
 if not SESSION_SECRET_KEY:
     raise ValueError("SESSION_SECRET_KEY environment variable not set!")
 
-print(f"\n=== Session Configuration ===")
-print(f"Setting up session middleware with cookie settings:")
-print(f"- cookie name: session")
-print(f"- SameSite: None")
-print(f"- Secure: True")
-print(f"- HttpOnly: True")
-print(f"=== End Session Configuration ===\n")
-
-# Session middleware must come after CORS but before routes
 app.add_middleware(
     SessionMiddleware,
     secret_key=SESSION_SECRET_KEY,
     session_cookie="session",
     max_age=3600,  # Session expires after 1 hour
-    same_site="none",  # Required for cross-site cookie
-    https_only=True,  # Required when same_site is "none"
-    http_only=True   # Prevent JavaScript access to cookie
+    same_site="none", 
+    https_only=True
 )
 
 # --- MongoDB Connection ---
@@ -539,20 +486,16 @@ async def login(request: Request):
 @app.get('/api/auth')
 async def auth(request: Request):
     try:
-        print("\n=== OAuth Callback Debug ===")
-        print(f"Session exists: {hasattr(request, 'session')}")
-        print(f"Initial session data: {dict(request.session) if hasattr(request, 'session') else 'No session'}")
+        if not hasattr(request, 'session') or request.session is None:
+            request.session = {}
         
         code = request.query_params.get('code')
         if not code:
-            print("No code in request")
             return JSONResponse(status_code=400, content={"error": "No authorization code received"})
         
-        print(f"Received OAuth code (first 10 chars): {code[:10]}...")
         token_url = "https://login.microsoftonline.com/organizations/oauth2/v2.0/token"
         
         async with httpx.AsyncClient() as client:
-            print("Exchanging code for token...")
             token_response = await client.post(
                 token_url,
                 data={
@@ -624,20 +567,12 @@ async def auth(request: Request):
             "role": role
         }
         
-        # Clear and set new session
         request.session.clear()
         request.session['user'] = processed_user
-        print(f"Set session user data: {processed_user}")
 
-        # Create response with explicit headers
+        # Redirect to frontend; SessionMiddleware will set the signed cookie on the response
         redirect_url = f"{FRONTEND_URL}/{processed_user['role']}"
         response = RedirectResponse(url=redirect_url, status_code=302)
-        
-        # Log the final state
-        print(f"Final session data: {dict(request.session)}")
-        print(f"Redirecting to: {redirect_url}")
-        print("=== End OAuth Callback Debug ===\n")
-        
         return response
 
     except Exception as e:
@@ -655,21 +590,6 @@ async def health_check():
     return JSONResponse(content={"status": "healthy", "message": "Server is running"})
 
 
-@app.options('/api/debug/session')
-async def debug_session_preflight(request: Request):
-    """Handle OPTIONS preflight request explicitly"""
-    origin = request.headers.get("origin")
-    if origin in allowed_origins:
-        headers = {
-            "Access-Control-Allow-Origin": origin,
-            "Access-Control-Allow-Methods": "GET, OPTIONS",
-            "Access-Control-Allow-Headers": "*",
-            "Access-Control-Allow-Credentials": "true",
-            "Access-Control-Max-Age": "3600",
-        }
-        return JSONResponse(content={}, headers=headers)
-    return JSONResponse(content={})
-
 @app.get('/api/debug/session')
 async def debug_session(request: Request):
     """Debug endpoint to inspect request data during CORS/cookie debugging"""
@@ -677,21 +597,16 @@ async def debug_session(request: Request):
     origin = request.headers.get("origin", "NO ORIGIN")
     print("\n=== Debug Session Request ===")
     print(f"Request origin: {origin}")
+    print(f"Configured FRONTEND_URL: {FRONTEND_URL}")
     print(f"Origin in allowed_origins: {origin in allowed_origins}")
-    
-    # Log all request headers
     print("\nRequest headers:")
-    headers = dict(request.headers)
-    for k, v in headers.items():
+    for k, v in request.headers.items():
         print(f"  {k}: {v}")
     
-    # Log all request cookies
     print("\nRequest cookies:")
-    cookies = dict(request.cookies)
-    for k, v in cookies.items():
+    for k, v in request.cookies.items():
         print(f"  {k}: {v}")
     
-    # Try to get session data
     session_data = None
     try:
         if hasattr(request, "session"):
@@ -704,30 +619,25 @@ async def debug_session(request: Request):
         print(f"\nError reading session: {str(e)}")
         session_data = {"error": f"Unable to read session: {str(e)}"}
 
-    # Prepare response data
-    response_data = {
+    response = JSONResponse(content={
         "timestamp": datetime.utcnow().isoformat(),
         "request": {
             "origin": origin,
-            "headers": headers,
-            "cookies": cookies
+            "headers": dict(request.headers),
+            "cookies": dict(request.cookies)
         },
         "server": {
+            "frontend_url": FRONTEND_URL,
             "allowed_origins": allowed_origins,
-            "origin_allowed": origin in allowed_origins,
-            "cloudflare_present": bool(headers.get("cf-ray"))
+            "origin_allowed": origin in allowed_origins
         },
         "session": {
             "data": session_data,
             "exists": hasattr(request, "session"),
             "has_user": bool(session_data and session_data.get("user"))
         }
-    }
+    })
 
-    # Create response with explicit CORS headers
-    response = JSONResponse(content=response_data)
-    
-    # Log response headers before returning
     print("\nResponse headers that will be sent:")
     for k, v in response.headers.items():
         print(f"  {k}: {v}")
