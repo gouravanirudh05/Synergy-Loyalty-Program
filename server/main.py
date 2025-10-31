@@ -99,13 +99,23 @@ security = HTTPBearer()
 if not SESSION_SECRET_KEY:
     raise ValueError("SESSION_SECRET_KEY environment variable not set!")
 
+print(f"\n=== Session Configuration ===")
+print(f"Setting up session middleware with cookie settings:")
+print(f"- cookie name: session")
+print(f"- SameSite: None")
+print(f"- Secure: True")
+print(f"- HttpOnly: True")
+print(f"=== End Session Configuration ===\n")
+
+# Session middleware must come after CORS but before routes
 app.add_middleware(
     SessionMiddleware,
     secret_key=SESSION_SECRET_KEY,
     session_cookie="session",
     max_age=3600,  # Session expires after 1 hour
-    same_site="none", 
-    https_only=True
+    same_site="none",  # Required for cross-site cookie
+    https_only=True,  # Required when same_site is "none"
+    http_only=True   # Prevent JavaScript access to cookie
 )
 
 # --- MongoDB Connection ---
@@ -529,16 +539,20 @@ async def login(request: Request):
 @app.get('/api/auth')
 async def auth(request: Request):
     try:
-        if not hasattr(request, 'session') or request.session is None:
-            request.session = {}
+        print("\n=== OAuth Callback Debug ===")
+        print(f"Session exists: {hasattr(request, 'session')}")
+        print(f"Initial session data: {dict(request.session) if hasattr(request, 'session') else 'No session'}")
         
         code = request.query_params.get('code')
         if not code:
+            print("No code in request")
             return JSONResponse(status_code=400, content={"error": "No authorization code received"})
         
+        print(f"Received OAuth code (first 10 chars): {code[:10]}...")
         token_url = "https://login.microsoftonline.com/organizations/oauth2/v2.0/token"
         
         async with httpx.AsyncClient() as client:
+            print("Exchanging code for token...")
             token_response = await client.post(
                 token_url,
                 data={
@@ -610,12 +624,20 @@ async def auth(request: Request):
             "role": role
         }
         
+        # Clear and set new session
         request.session.clear()
         request.session['user'] = processed_user
+        print(f"Set session user data: {processed_user}")
 
-        # Redirect to frontend; SessionMiddleware will set the signed cookie on the response
+        # Create response with explicit headers
         redirect_url = f"{FRONTEND_URL}/{processed_user['role']}"
         response = RedirectResponse(url=redirect_url, status_code=302)
+        
+        # Log the final state
+        print(f"Final session data: {dict(request.session)}")
+        print(f"Redirecting to: {redirect_url}")
+        print("=== End OAuth Callback Debug ===\n")
+        
         return response
 
     except Exception as e:
