@@ -51,7 +51,7 @@ if not SESSION_SECRET_KEY:
 app.add_middleware(
     SessionMiddleware,
     secret_key=SESSION_SECRET_KEY,
-    session_cookie="session_id",
+    session_cookie="session",
     max_age=3600,  # Session expires after 1 hour
     same_site="none", 
     https_only=True
@@ -562,20 +562,9 @@ async def auth(request: Request):
         request.session.clear()
         request.session['user'] = processed_user
 
-        # ✅ Added: Explicit cookie + redirect
+        # Redirect to frontend; SessionMiddleware will set the signed cookie on the response
         redirect_url = f"{FRONTEND_URL}/{processed_user['role']}"
         response = RedirectResponse(url=redirect_url, status_code=302)
-
-        session_cookie = request.cookies.get("session")
-        if session_cookie:
-            response.set_cookie(
-                key="session",
-                value=session_cookie,
-                httponly=True,
-                secure=True,
-                samesite="none"
-            )
-
         return response
 
     except Exception as e:
@@ -591,6 +580,41 @@ async def auth(request: Request):
 async def health_check():
     """Simple health check endpoint"""
     return JSONResponse(content={"status": "healthy", "message": "Server is running"})
+
+
+@app.get('/api/debug/session')
+async def debug_session(request: Request):
+    """Temporary debug endpoint.
+
+    Returns limited request headers, cookies and the current session contents.
+    Only enabled when environment variable ENABLE_DEBUG is set to 'true'.
+    """
+    if os.getenv("ENABLE_DEBUG", "false").lower() != "true":
+        # keep hidden unless explicitly enabled
+        raise HTTPException(status_code=404, detail="Not found")
+
+    # Return limited headers to avoid leaking sensitive data
+    headers = {
+        "origin": request.headers.get("origin"),
+        "referer": request.headers.get("referer"),
+        "host": request.headers.get("host"),
+        "user-agent": request.headers.get("user-agent")
+    }
+
+    cookies = dict(request.cookies) if request.cookies else {}
+
+    session_contents = None
+    try:
+        session_contents = dict(request.session) if hasattr(request, "session") and request.session is not None else {}
+    except Exception:
+        session_contents = {"error": "unable to read session"}
+
+    return JSONResponse(content={
+        "headers": headers,
+        "cookies": cookies,
+        "session": session_contents,
+        "has_user": bool(session_contents and session_contents.get("user"))
+    })
 
 @app.get('/api/user/profile')
 async def user_profile(request: Request):
