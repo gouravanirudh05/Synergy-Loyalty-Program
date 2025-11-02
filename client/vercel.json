@@ -1,5 +1,14 @@
 {
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "framework": "vite",
+  "cleanUrls": true,
+  "trailingSlash": false,
   "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "https://synergy-loyalty-program.onrender.com/api/$1"
+    },
     {
       "source": "/(.*)",
       "destination": "/index.html"
@@ -7,7 +16,7 @@
   ],
   "headers": [
     {
-      "source": "/(.*)",
+      "source": "/api/(.*)",
       "headers": [
         {
           "key": "Access-Control-Allow-Origin",
@@ -23,9 +32,5 @@
         }
       ]
     }
-  ],
-  "buildCommand": "npm run build",
-  "outputDirectory": "dist",
-  "framework": "vite",
-  "cleanUrls": true
+  ]
 }
