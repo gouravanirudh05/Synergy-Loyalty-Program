@@ -721,7 +721,10 @@ async def update_event(event_id: str, event_data: EventUpdate, request: Request,
         if event_data.secret_code is not None:
             # Decrypt the incoming encrypted secret_code from client before storing
             decrypted_code = decrypt_secret_code(event_data.secret_code)
-            update_data["secret_code"] = decrypted_code if decrypted_code else event_data.secret_code
+            if(decrypted_code is not None):
+                update_data["secret_code"] = decrypted_code
+            else:
+                raise HTTPException(status=422, detail="Unable to decrypt secret code from user request");
         
         if not update_data:
             raise HTTPException(status_code=400, detail="No fields to update")
@@ -1248,3 +1251,4 @@ async def leaderboard_full():
         return JSONResponse(content={"teams": teams})
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching teams: {str(e)}")
+
