@@ -29,7 +29,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, onEdit, onDelete }) => {
         <div className="flex items-center gap-2">
           <Calendar size={20} className="text-cyan-400" />
           <span className="text-xs uppercase tracking-wider text-cyan-400 font-semibold">
-            EVENT #{event.event_id.slice(-8)}
+            EVENT #{event.event_name}
           </span>
         </div>
         
