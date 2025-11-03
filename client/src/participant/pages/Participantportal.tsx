@@ -77,78 +77,69 @@ const ParticipantPortal: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white flex flex-col">
+
       {/* Header */}
-      <div className="border-b border-slate-800 bg-slate-950/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="px-4 sm:px-6 py-3 sm:py-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            
-            {/* Title */}
-            <h1 className="text-lg sm:text-2xl font-bold whitespace-nowrap">
-              <span className="text-cyan-400">SYNERGY</span>
-              <span className="text-slate-400 ml-1 sm:ml-2">PARTICIPANT</span>
-            </h1>
+      <header className="border-b border-slate-800 bg-slate-950/60 backdrop-blur-md sticky top-0 z-10">
+        <div className="px-4 md:px-6 py-3 flex flex-wrap justify-between items-center gap-3">
 
-            {/* Right Side Buttons */}
-            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+          {/* Title */}
+          <h1 className="text-xl md:text-2xl font-bold whitespace-nowrap">
+           <div className="flex items-center gap-1">
+  <span className="text-cyan-300 font-bold">Synergy</span>
+  <span className="text-slate-400 font-light">Participant</span>
+</div>
 
-              {/* Leaderboard */}
+          </h1>
+
+          <div className="flex flex-wrap items-center gap-2 md:gap-3">
+
+            {/* Leaderboard */}
+            <button
+              onClick={() => navigate('/leaderboard')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 border border-cyan-500/30 hover:border-cyan-400/50 transition-all group"
+            >
+              <TrendingUp className="w-4 h-4 text-cyan-400 group-hover:text-cyan-300" />
+              <span className="text-xs md:text-sm font-medium text-slate-300 group-hover:text-white">
+                Leaderboard
+              </span>
+            </button>
+
+            {/* Volunteer */}
+            {user && (user.role === "admin" || user.role === "volunteer") && (
               <button
-                onClick={() => navigate('/leaderboard')}
-                className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-slate-800/50 
-                hover:bg-slate-700/50 border border-cyan-500/30 hover:border-cyan-400/50 transition-all duration-200 group"
+                onClick={() => navigate('/volunteer')}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 border border-cyan-500/30 hover:border-cyan-400/50 transition-all group"
               >
-                <TrendingUp className="w-4 h-4 text-cyan-400 group-hover:text-cyan-300" />
-                <span className="text-xs sm:text-sm font-medium text-slate-300 group-hover:text-white">
-                  Leaderboard
+                <Users className="w-4 h-4 text-cyan-400 group-hover:text-cyan-300" />
+                <span className="text-xs md:text-sm font-medium text-slate-300 group-hover:text-white">
+                  Volunteer
                 </span>
               </button>
+            )}
 
-              {/* Volunteer Mode */}
-              {user && (user.role === "admin" || user.role === "volunteer") && (
-                <button
-                  onClick={() => navigate('/volunteer')}
-                  className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-slate-800/50 
-                  hover:bg-slate-700/50 border border-cyan-500/30 hover:border-cyan-400/50 transition-all duration-200 group"
-                >
-                  <Users className="w-4 h-4 text-cyan-400 group-hover:text-cyan-300" />
-                  <span className="text-xs sm:text-sm font-medium text-slate-300 group-hover:text-white">
-                    Volunteer
-                  </span>
-                </button>
-              )}
+            {/* Profile Dropdown */}
+            {user && (
+              <ProfileDropdown
+                user={user}
+                team={team}
+                onLogout={() => navigate("/")}
+              />
+            )}
 
-              {/* Profile */}
-              {user && (
-                <ProfileDropdown
-                  user={user}
-                  team={team}
-                  onLogout={() => {
-                    navigate("/");
-                  }}
-                />
-              )}
-
-              {/* Avatar */}
-              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
-                <span className="text-xs sm:text-sm font-bold">
-                  {user?.name?.[0]?.toUpperCase() || "U"}
-                </span>
-              </div>
-
-            </div>
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* Main */}
-      <div className="px-4 sm:px-6 py-5 sm:py-8">
+      {/* Main Content */}
+      <main className="flex-1 px-4 md:px-6 py-6 md:py-8">
         {!team ? (
           <TeamJoinCreate onTeamCreated={handleTeamCreated} />
         ) : (
           <TeamDashboard team={team} onTeamLeft={handleTeamLeft} />
         )}
-      </div>
+      </main>
+
     </div>
   );
 };
