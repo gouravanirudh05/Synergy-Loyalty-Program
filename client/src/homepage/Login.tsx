@@ -50,6 +50,22 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       {/* Main Content */}
       <div className="relative z-10 flex items-center justify-center min-h-screen px-4">
         <div className="text-center w-full max-w-md sm:max-w-lg">
+          {/* Logos Section */}
+          <div className="flex items-center justify-center gap-8 mb-8">
+            <img 
+              src="/images/iiitb-logo.png" 
+              alt="IIITB Logo"
+              className="h-16 sm:h-20 w-auto object-contain drop-shadow-[0_0_20px_rgba(100,200,255,0.4)] hover:drop-shadow-[0_0_30px_rgba(100,200,255,0.6)] transition-all duration-300"
+            />
+            <div className="h-12 sm:h-16 w-px bg-gradient-to-b from-transparent via-cyan-400 to-transparent"></div>
+            <img 
+              src="/images/logo.png" 
+              alt="Event Logo"
+              className="h-8 sm:h-12 w-auto object-contain drop-shadow-[0_0_20px_rgba(200,100,255,0.4)] hover:drop-shadow-[0_0_30px_rgba(200,100,255,0.6)] transition-all duration-300"
+              style={{ imageRendering: 'crisp-edges', filter: 'contrast(1.1) brightness(1.05)' }}
+            />
+          </div>
+
           {/* Title */}
           <div className="mb-12">
             <h1 className="text-4xl sm:text-6xl font-extrabold mb-3 tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-500 drop-shadow-[0_0_12px_rgba(200,100,255,0.4)]">
@@ -74,9 +90,14 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
             <button
               onClick={onLogin}
-              className="w-full border border-cyan-400 text-cyan-300 hover:bg-cyan-400/20 hover:text-white font-semibold py-3 rounded-lg transition-all duration-300 uppercase tracking-widest text-sm sm:text-base"
+              className="w-full flex items-center justify-center gap-3 border border-cyan-400 text-cyan-300 hover:bg-cyan-400/20 hover:text-white font-semibold py-3 rounded-lg transition-all duration-300 uppercase tracking-widest text-sm sm:text-base"
             >
-              Sign in with Microsoft
+              <img 
+                src="/images/microsoft_logo.png" 
+                alt="Microsoft Logo"
+                className="w-6 h-6 object-contain group-hover:animate-pulse" 
+              />
+              <span>Sign in with Microsoft</span>
             </button>
           </div>
         </div>

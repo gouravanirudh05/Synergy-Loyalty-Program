@@ -904,11 +904,11 @@ async def scan_qr(
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid or expired event token")
 
-    event_id = payload["event_id"]
+    event_name = payload["event_name"]
     volunteer_email = payload["sub"]
 
     # Verify event exists
-    event = await event_collection.find_one({"event_id": event_id})
+    event = await event_collection.find_one({"event_id": event_name})
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
     
