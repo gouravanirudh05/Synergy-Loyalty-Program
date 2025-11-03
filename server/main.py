@@ -911,7 +911,8 @@ async def scan_qr(
     event = await event_collection.find_one({"event_id": event_name})
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
-    
+
+    event_name = event["event_name"]
     team = await teams_collection.find_one({"qr_id": data.team_id})
 
     if not team:
@@ -927,7 +928,7 @@ async def scan_qr(
     new_points = team.get("points", 0) + event.get("points", 0)
     teams_collection.update_one(
         {"qr_id": data.team_id},
-        {"$set": {"points": new_points}, "$push": {"events_participated": event_id}}
+        {"$set": {"points": new_points}, "$push": {"events_participated": event_name}}
     )
 
     # Increment event’s participant count
@@ -1268,4 +1269,5 @@ async def leaderboard_full():
         return JSONResponse(content={"teams": teams})
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching teams: {str(e)}")
+
 

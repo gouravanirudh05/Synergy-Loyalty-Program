@@ -86,8 +86,8 @@ const ParticipantPortal: React.FC = () => {
           {/* Title */}
           <h1 className="text-xl md:text-2xl font-bold whitespace-nowrap">
            <div className="flex items-center gap-1">
-  <span className="text-cyan-300 font-bold">Synergy</span>
-  <span className="text-slate-400 font-light">Participant</span>
+  <span className="text-cyan-300 font-bold">SYNERGY</span>
+  <span className="text-slate-400 font-light">PARTICIPANT</span>
 </div>
 
           </h1>
