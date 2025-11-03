@@ -33,29 +33,22 @@ const TeamDashboard: React.FC<TeamDashboardProps> = ({ team, onTeamLeft }) => {
   };
 
   const handleLeaveTeam = async () => {
-    if (!confirm("Are you sure you want to leave this team?")) {
-      return;
-    }
+    if (!confirm("Are you sure you want to leave this team?")) return;
 
     setLeaving(true);
     try {
       const response = await fetch("/api/leave_team", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ team_id: team.team_id }),
       });
 
       const data = await response.json();
 
-      if (response.ok) {
-        onTeamLeft();
-      } else {
-        alert(data.message || "Failed to leave team");
-      }
-    } catch (err) {
+      if (response.ok) onTeamLeft();
+      else alert(data.message || "Failed to leave team");
+    } catch {
       alert("Network error. Please try again.");
     } finally {
       setLeaving(false);
@@ -63,46 +56,54 @@ const TeamDashboard: React.FC<TeamDashboardProps> = ({ team, onTeamLeft }) => {
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <div className="max-w-6xl mx-auto space-y-6 px-4 sm:px-6">
+      
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h2 className="text-3xl sm:text-4xl font-bold mb-2 bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
+        <div className="min-w-0">
+          <h2 className="text-3xl sm:text-4xl font-bold mb-1 truncate bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
             {team.team_name}
           </h2>
-          <p className="text-slate-400 text-lg">Team Dashboard</p>
+          <p className="text-slate-400 text-sm sm:text-base">Team Dashboard</p>
         </div>
         <button
           onClick={handleLeaveTeam}
           disabled={leaving}
-          className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/50 rounded-lg text-red-400 hover:text-red-300 transition-all duration-200 disabled:opacity-50"
+          className="flex items-center justify-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20
+          border border-red-500/50 rounded-lg text-red-400 hover:text-red-300 transition-all duration-200 disabled:opacity-50 w-full sm:w-auto"
         >
           <LogOut className="w-4 h-4" />
           <span>{leaving ? "Leaving..." : "Leave Team"}</span>
         </button>
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-6">
-        {/* QR Code Section */}
-        <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
+      {/* QR + Info */}
+      <div className="grid md:grid-cols-2 gap-6">
+
+        {/* QR Section */}
+        <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6 flex flex-col">
           <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-cyan-500/20 flex items-center justify-center">
               <svg className="w-5 h-5 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zM17 8h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1z" />
               </svg>
             </div>
             Team QR Code
           </h3>
-          <div className="flex flex-col items-center">
-            <div className="bg-white p-4 rounded-xl mb-4">
-              <QRCodeSVG value={team.qr_id || team.team_id} size={200} />
+
+          <div className="flex flex-col items-center flex-1">
+            <div className="bg-white p-3 rounded-xl mb-3 w-[180px] sm:w-[220px]">
+              <QRCodeSVG value={team.qr_id || team.team_id} width="100%" />
             </div>
+
             <p className="text-slate-400 text-sm mb-3 text-center">
               Show this QR code to volunteers at events
             </p>
+
             <button
               onClick={() => handleCopy(team.qr_id || team.team_id, "qr")}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700 rounded-lg transition-all duration-200"
+              className="flex items-center gap-2 px-4 py-2 bg-slate-800/50 hover:bg-slate-700/50
+              border border-slate-700 rounded-lg transition-all duration-200"
             >
               {copied === "qr" ? (
                 <>
@@ -119,9 +120,9 @@ const TeamDashboard: React.FC<TeamDashboardProps> = ({ team, onTeamLeft }) => {
           </div>
         </div>
 
-        {/* Team Info Section */}
+        {/* Points + Invite */}
         <div className="space-y-6">
-          {/* Points Card */}
+
           <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-bold flex items-center gap-2">
@@ -139,7 +140,6 @@ const TeamDashboard: React.FC<TeamDashboardProps> = ({ team, onTeamLeft }) => {
             </div>
           </div>
 
-          {/* Join Code Card */}
           <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
             <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
@@ -147,16 +147,19 @@ const TeamDashboard: React.FC<TeamDashboardProps> = ({ team, onTeamLeft }) => {
               </div>
               Invite Members
             </h3>
+
             <p className="text-slate-400 text-sm mb-3">
-              Share this code with friends to join your team (max 3 members)
+              Share this code (max 3 members)
             </p>
-            <div className="flex gap-2">
-              <div className="flex-1 px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg font-mono text-lg text-cyan-400">
+
+            <div className="flex gap-2 flex-col sm:flex-row">
+              <div className="flex-1 px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg font-mono text-lg text-cyan-400 overflow-x-auto whitespace-nowrap">
                 {team.join_code || "N/A"}
               </div>
+
               <button
                 onClick={() => handleCopy(team.join_code || "", "code")}
-                className="px-4 py-3 bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700 rounded-lg transition-all duration-200"
+                className="px-4 py-3 bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700 rounded-lg transition-all duration-200 self-start sm:self-auto"
               >
                 {copied === "code" ? (
                   <Check className="w-5 h-5 text-green-400" />
@@ -166,10 +169,11 @@ const TeamDashboard: React.FC<TeamDashboardProps> = ({ team, onTeamLeft }) => {
               </button>
             </div>
           </div>
+
         </div>
       </div>
 
-      {/* Team Members */}
+      {/* Members */}
       <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
         <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
@@ -177,6 +181,7 @@ const TeamDashboard: React.FC<TeamDashboardProps> = ({ team, onTeamLeft }) => {
           </div>
           Team Members ({team.members.length}/3)
         </h3>
+
         <div className="space-y-3">
           {team.members.map((member, index) => (
             <div
@@ -188,14 +193,12 @@ const TeamDashboard: React.FC<TeamDashboardProps> = ({ team, onTeamLeft }) => {
                   {member.name.charAt(0).toUpperCase()}
                 </span>
               </div>
+
               <div className="flex-1 min-w-0">
-                <div className="font-semibold text-white truncate">
-                  {member.name}
-                </div>
-                <div className="text-sm text-slate-400 truncate">
-                  {member.rollNumber}
-                </div>
+                <div className="font-semibold text-white truncate">{member.name}</div>
+                <div className="text-sm text-slate-400 truncate">{member.rollNumber}</div>
               </div>
+
               {index === 0 && (
                 <span className="px-2 py-1 bg-cyan-500/20 text-cyan-400 text-xs font-semibold rounded">
                   Leader
@@ -203,6 +206,7 @@ const TeamDashboard: React.FC<TeamDashboardProps> = ({ team, onTeamLeft }) => {
               )}
             </div>
           ))}
+
           {team.members.length < 3 && (
             <div className="p-4 bg-slate-800/20 rounded-lg border border-dashed border-slate-700 text-center text-slate-500">
               {3 - team.members.length} slot{3 - team.members.length > 1 ? "s" : ""} available
@@ -211,22 +215,20 @@ const TeamDashboard: React.FC<TeamDashboardProps> = ({ team, onTeamLeft }) => {
         </div>
       </div>
 
-      {/* Events Participated */}
+      {/* Events */}
       {team.events_participated.length > 0 && (
         <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
           <h3 className="text-xl font-bold mb-4">Events Participated</h3>
           <div className="space-y-2">
             {team.events_participated.map((event: any, index: number) => (
-              <div
-                key={index}
-                className="p-3 bg-slate-800/30 rounded-lg border border-slate-700/50 text-slate-300"
-              >
+              <div key={index} className="p-3 bg-slate-800/30 rounded-lg border border-slate-700/50 text-slate-300">
                 {typeof event === "string" ? event : event.event || "Unknown Event"}
               </div>
             ))}
           </div>
         </div>
       )}
+
     </div>
   );
 };
