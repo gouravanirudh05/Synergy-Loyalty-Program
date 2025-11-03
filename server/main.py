@@ -17,6 +17,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi import Query
 import os
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.exceptions import InvalidTag
 import hashlib
 import base64
 
@@ -170,6 +171,62 @@ class QRScanRequest(BaseModel):
     team_id: str
 
 # --- Helper Functions ---
+ENCRYPTION_KEY = hashlib.sha256(SECRET_KEY.encode("utf-8")).digest()
+IV_SIZE_BYTES = 12  # Standard nonce size for AES-GCM
+
+# --- Encryption Function ---
+def encrypt_secret_code(plain_text: str) -> str:
+    """Encrypts text using AES-256-GCM with a random IV."""
+    if not plain_text:
+        return ""
+    try:
+        aesgcm = AESGCM(ENCRYPTION_KEY)
+        
+        # 2. Generate a new, random IV (nonce)
+        iv = os.urandom(IV_SIZE_BYTES)
+        
+        # 3. Encrypt the data
+        ciphertext_with_tag = aesgcm.encrypt(iv, plain_text.encode("utf-8"), None)
+        
+        # 4. Prepend the IV to the ciphertext for storage/transmission
+        combined = iv + ciphertext_with_tag
+        
+        # 5. Return as URL-safe Base64, without padding
+        return base64.urlsafe_b64encode(combined).decode("utf-8").rstrip('=')
+        
+    except Exception as e:
+        print(f"Encryption error: {e}")
+        raise e
+
+# --- Decryption Function ---
+def decrypt_secret_code(encrypted_text: str) -> str:
+    """Decrypts AES-256-GCM text."""
+    if not encrypted_text:
+        return ""
+    try:
+        aesgcm = AESGCM(ENCRYPTION_KEY)
+        
+        # 1. Add back padding (if stripped) and decode from URL-safe Base64
+        padding = len(encrypted_text) % 4
+        if padding:
+            encrypted_text += '=' * (4 - padding)
+        
+        combined = base64.urlsafe_b64decode(encrypted_text.encode("utf-8"))
+        
+        # 2. Extract the IV and the ciphertext
+        iv = combined[:IV_SIZE_BYTES]
+        ciphertext_with_tag = combined[IV_SIZE_BYTES:]
+        
+        # 3. Decrypt and verify the authentication tag
+        # This will raise InvalidTag if the key is wrong or data is tampered
+        plaintext = aesgcm.decrypt(iv, ciphertext_with_tag, None)
+        
+        return plaintext.decode("utf-8")
+        
+    except (InvalidTag, ValueError, Exception) as e:
+        print(f"Decryption failed. Wrong key, tampered data, or corrupt payload: {e}")
+        return ""  # Fail safely
+
 def serialize_datetime_fields(obj):
     """Convert datetime objects in a dictionary to ISO format strings"""
     if isinstance(obj, dict):
@@ -188,47 +245,6 @@ def serialize_datetime_fields(obj):
 
 ALGORITHM = "HS256"
 TOKEN_EXPIRE_MINUTES = 180
-
-# --- AES-GCM Encryption/Decryption for secret_code ---
-def get_encryption_key() -> bytes:
-    """Derive a 32-byte AES key from SECRET_KEY using SHA-256"""
-    return hashlib.sha256(SECRET_KEY.encode()).digest()
-
-def encrypt_secret_code(plain_text: str) -> str:
-    """
-    Encrypt plain_text using AES-GCM with a 256-bit key derived from SECRET_KEY.
-    Returns urlsafe-base64 encoded string (iv || ciphertext_with_tag).
-    """
-    if not plain_text:
-        return ""
-    
-    key = get_encryption_key()
-    aesgcm = AESGCM(key)
-    iv = os.urandom(12)  # 96-bit nonce for AES-GCM
-    ciphertext = aesgcm.encrypt(iv, plain_text.encode("utf-8"), None)
-    # Combine iv + ciphertext (ciphertext includes the authentication tag)
-    combined = iv + ciphertext
-    return base64.urlsafe_b64encode(combined).decode("utf-8")
-
-def decrypt_secret_code(encrypted_text: str) -> str:
-    """
-    Decrypt encrypted_text using AES-GCM.
-    Returns the original plaintext.
-    """
-    if not encrypted_text:
-        return ""
-    
-    try:
-        key = get_encryption_key()
-        aesgcm = AESGCM(key)
-        combined = base64.urlsafe_b64decode(encrypted_text.encode("utf-8"))
-        iv = combined[:12]  # First 12 bytes
-        ciphertext = combined[12:]  # Rest is ciphertext + tag
-        plaintext = aesgcm.decrypt(iv, ciphertext, None)
-        return plaintext.decode("utf-8")
-    except Exception as e:
-        print(f"Decryption error: {e}")
-        return ""
 
 def create_volunteer_token(volunteer_email: str, event_id: str):
     payload = {
@@ -665,11 +681,15 @@ async def create_event(request: Request, event_data: EventCreate, admin_user: di
     """Create a new event (Admin only)"""
     try:
         event_id = str(uuid.uuid4())
+        
+        # Decrypt received secret_code before storing
+        decrypted_secret = decrypt_secret_code(event_data.secret_code)
+        
         event = {
             "event_id": event_id,
             "event_name": event_data.event_name,
             "points": event_data.points,
-            "secret_code": event_data.secret_code,  # Store plain text in DB
+            "secret_code": decrypted_secret,  # Store plain text in DB
             "expired": False,
             "participants": 0,
         }
@@ -677,10 +697,9 @@ async def create_event(request: Request, event_data: EventCreate, admin_user: di
         result = await event_collection.insert_one(event)
         if result.inserted_id:
             event["_id"] = str(result.inserted_id)
-            # Serialize datetime fields
             event = serialize_datetime_fields(event)
-            # Encrypt secret_code before sending to frontend
-            event["secret_code"] = encrypt_secret_code(event.get("secret_code", ""))
+            # Encrypt secret_code before sending
+            event["secret_code"] = encrypt_secret_code(event["secret_code"])
             return JSONResponse(content={"message": "Event created successfully", "event": event})
         else:
             raise HTTPException(status_code=500, detail="Failed to create event")
@@ -696,11 +715,9 @@ async def get_events(request: Request, user: dict = Depends(get_current_user)):
     try:
         events = []
         async for event in event_collection.find():
-            # Convert ObjectId to string
             event["_id"] = str(event["_id"])
-            # Serialize datetime fields
             event = serialize_datetime_fields(event)
-            # Encrypt secret_code before sending to frontend
+            # Encrypt secret_code before sending
             event["secret_code"] = encrypt_secret_code(event.get("secret_code", ""))
             events.append(event)
         return JSONResponse(content={"events": events})
@@ -719,12 +736,8 @@ async def update_event(event_id: str, event_data: EventUpdate, request: Request,
         if event_data.expired is not None:
             update_data["expired"] = event_data.expired
         if event_data.secret_code is not None:
-            # Decrypt the incoming encrypted secret_code from client before storing
-            decrypted_code = decrypt_secret_code(event_data.secret_code)
-            if(decrypted_code is not None):
-                update_data["secret_code"] = decrypted_code
-            else:
-                raise HTTPException(status=422, detail="Unable to decrypt secret code from user request");
+            # Decrypt received secret_code before storing
+            update_data["secret_code"] = decrypt_secret_code(event_data.secret_code)
         
         if not update_data:
             raise HTTPException(status_code=400, detail="No fields to update")
@@ -744,9 +757,8 @@ async def update_event(event_id: str, event_data: EventUpdate, request: Request,
         updated_event = await event_collection.find_one({"event_id": event_id})
         if updated_event:
             updated_event["_id"] = str(updated_event["_id"])
-            # Serialize datetime fields
             updated_event = serialize_datetime_fields(updated_event)
-            # Encrypt secret_code before sending to frontend
+            # Encrypt secret_code before sending
             updated_event["secret_code"] = encrypt_secret_code(updated_event.get("secret_code", ""))
         
         return JSONResponse(content={"message": "Event updated successfully", "event": updated_event})
@@ -1234,7 +1246,7 @@ async def join_team_by_code(request: Request, user: dict = Depends(get_current_u
     
 @app.get("/api/leaderboard/full")
 async def leaderboard_full():
-    """Return all teams with only name and points, sorted by points descending."""
+    """Return top 10 teams with points > 0, sorted by points descending."""
     if teams_collection is None:
         raise HTTPException(
             status_code=503,
@@ -1242,12 +1254,17 @@ async def leaderboard_full():
         )
     try:
         teams = []
-        cursor = teams_collection.find({}, {"_id": 1, "team_name": 1, "points": 1}).sort("points", -1)
+        # Filter teams with points > 0, sort by points descending, limit to 10
+        cursor = teams_collection.find(
+            {"points": {"$gt": 0}}, 
+            {"_id": 1, "team_name": 1, "points": 1}
+        ).sort("points", -1).limit(10)
+        
         async for team in cursor:
             team["_id"] = str(team["_id"])
-            team["name"] = team.pop("team_name") 
-            if(team["points"]>0):
-                teams.append(team)
+            team["name"] = team.pop("team_name")
+            teams.append(team)
+        
         return JSONResponse(content={"teams": teams})
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching teams: {str(e)}")
