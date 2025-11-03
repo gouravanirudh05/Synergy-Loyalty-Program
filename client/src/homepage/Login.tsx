@@ -74,9 +74,14 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
             <button
               onClick={onLogin}
-              className="w-full border border-cyan-400 text-cyan-300 hover:bg-cyan-400/20 hover:text-white font-semibold py-3 rounded-lg transition-all duration-300 uppercase tracking-widest text-sm sm:text-base"
+              className="w-full flex items-center justify-center gap-3 border border-cyan-400 text-cyan-300 hover:bg-cyan-400/20 hover:text-white font-semibold py-3 rounded-lg transition-all duration-300 uppercase tracking-widest text-sm sm:text-base"
             >
-              Sign in with Microsoft
+              <img 
+                src="/images/microsoft_logo.png" 
+                alt="Microsoft Logo"
+                className="w-6 h-6 object-contain group-hover:animate-pulse" 
+              />
+              <span>Sign in with Microsoft</span>
             </button>
           </div>
         </div>
