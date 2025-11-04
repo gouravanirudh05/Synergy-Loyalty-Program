@@ -81,26 +81,26 @@ const ParticipantPortal: React.FC = () => {
 
       {/* Header */}
       <header className="border-b border-slate-800 bg-slate-950/60 backdrop-blur-md sticky top-0 z-10">
-        <div className="px-4 md:px-6 py-3 flex flex-wrap justify-between items-center gap-3">
+        <div className="px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 flex justify-between items-center gap-2 sm:gap-3">
 
           {/* Title */}
-          <h1 className="text-xl md:text-2xl font-bold whitespace-nowrap">
-           <div className="flex items-center gap-1">
-  <span className="text-cyan-300 font-bold">SYNERGY</span>
-  <span className="text-slate-400 font-light">PARTICIPANT</span>
-</div>
-
+          <h1 className="text-base sm:text-xl md:text-2xl font-bold flex-shrink-0">
+            <div className="flex items-center gap-0.5 sm:gap-1">
+              <span className="text-cyan-300 font-bold">SYNERGY</span>
+              <span className="text-slate-400 font-light hidden xs:inline">PARTICIPANT</span>
+            </div>
           </h1>
 
-          <div className="flex flex-wrap items-center gap-2 md:gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 ml-auto mr-2 sm:mr-0">
 
             {/* Leaderboard */}
             <button
               onClick={() => navigate('/leaderboard')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 border border-cyan-500/30 hover:border-cyan-400/50 transition-all group"
+              className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 sm:py-1.5 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 border border-cyan-500/30 hover:border-cyan-400/50 transition-all group"
+              aria-label="Leaderboard"
             >
-              <TrendingUp className="w-4 h-4 text-cyan-400 group-hover:text-cyan-300" />
-              <span className="text-xs md:text-sm font-medium text-slate-300 group-hover:text-white">
+              <TrendingUp className="w-4 h-4 sm:w-4 sm:h-4 text-cyan-400 group-hover:text-cyan-300" />
+              <span className="text-xs md:text-sm font-medium text-slate-300 group-hover:text-white hidden sm:inline">
                 Leaderboard
               </span>
             </button>
@@ -109,10 +109,11 @@ const ParticipantPortal: React.FC = () => {
             {user && (user.role === "admin" || user.role === "volunteer") && (
               <button
                 onClick={() => navigate('/volunteer')}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 border border-cyan-500/30 hover:border-cyan-400/50 transition-all group"
+                className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 sm:py-1.5 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 border border-cyan-500/30 hover:border-cyan-400/50 transition-all group"
+                aria-label="Volunteer"
               >
-                <Users className="w-4 h-4 text-cyan-400 group-hover:text-cyan-300" />
-                <span className="text-xs md:text-sm font-medium text-slate-300 group-hover:text-white">
+                <Users className="w-4 h-4 sm:w-4 sm:h-4 text-cyan-400 group-hover:text-cyan-300" />
+                <span className="text-xs md:text-sm font-medium text-slate-300 group-hover:text-white hidden sm:inline">
                   Volunteer
                 </span>
               </button>
