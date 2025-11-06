@@ -928,7 +928,7 @@ async def scan_qr(
     new_points = team.get("points", 0) + event.get("points", 0)
     teams_collection.update_one(
         {"qr_id": data.team_id},
-        {"$set": {"points": new_points}, "$push": {"events_participated": event_name}}
+        {"$set": {"points": new_points}, "$push": {"events_participated": event_id}}
     )
 
     # Increment event’s participant count
