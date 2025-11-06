@@ -904,11 +904,11 @@ async def scan_qr(
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid or expired event token")
 
-    event_name = payload["event_id"]
+    event_id = payload["event_id"]
     volunteer_email = payload["sub"]
 
     # Verify event exists
-    event = await event_collection.find_one({"event_id": event_name})
+    event = await event_collection.find_one({"event_id": event_id})
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
 
@@ -1274,6 +1274,7 @@ async def leaderboard_full():
         return JSONResponse(content={"teams": teams})
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching teams: {str(e)}")
+
 
 
 
