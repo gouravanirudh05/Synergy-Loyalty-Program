@@ -797,7 +797,7 @@ async def add_volunteer(volunteer_data: VolunteerCreate, request: Request, admin
         volunteer = {
             "rollNumber": volunteer_data.rollNumber,
             "name": volunteer_data.name,
-            "email": volunteer_data.email,
+            "email": volunteer_data.email.lower(),
         }
         
         result = await volunteer_collection.insert_one(volunteer)
@@ -996,6 +996,11 @@ async def leave_team(payload: TeamAction, request: Request, user: dict = Depends
             raise HTTPException(status_code=500, detail="Failed to remove member from team")
 
         updated_team = await teams_collection.find_one({"team_id": payload.team_id})
+        
+        if updated_team and len(updated_team.get("members", [])) == 0:
+            await teams_collection.delete_one({"team_id": payload.team_id})
+            return JSONResponse(status_code=200, content={"success": True, "message": "Left team successfully. Team deleted as no members remain.", "team": None})
+        
         if updated_team and "_id" in updated_team:
             updated_team["_id"] = str(updated_team["_id"])
         updated_team = serialize_datetime_fields(updated_team) if updated_team else updated_team
@@ -1269,5 +1274,6 @@ async def leaderboard_full():
         return JSONResponse(content={"teams": teams})
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching teams: {str(e)}")
+
 
 
