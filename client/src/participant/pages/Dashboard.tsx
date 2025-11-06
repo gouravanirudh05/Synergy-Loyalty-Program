@@ -100,6 +100,10 @@ const TeamDashboard: React.FC<TeamDashboardProps> = ({ team, onTeamLeft }) => {
               Show this QR code to volunteers at events
             </p>
 
+            <p className="text-slate-400 text-sm mb-3 text-center">
+              QR ID: {team.qr_id || team.team_id}
+            </p>
+
             <button
               onClick={() => handleCopy(team.qr_id || team.team_id, "qr")}
               className="flex items-center gap-2 px-4 py-2 bg-slate-800/50 hover:bg-slate-700/50
