@@ -219,20 +219,6 @@ const TeamDashboard: React.FC<TeamDashboardProps> = ({ team, onTeamLeft }) => {
         </div>
       </div>
 
-      {/* Events */}
-      {team.events_participated.length > 0 && (
-        <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
-          <h3 className="text-xl font-bold mb-4">Events Participated</h3>
-          <div className="space-y-2">
-            {team.events_participated.map((event: any, index: number) => (
-              <div key={index} className="p-3 bg-slate-800/30 rounded-lg border border-slate-700/50 text-slate-300">
-                {typeof event === "string" ? event : event.event || "Unknown Event"}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
     </div>
   );
 };
