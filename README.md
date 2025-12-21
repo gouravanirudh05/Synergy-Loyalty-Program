@@ -65,37 +65,12 @@ A comprehensive web-based platform for managing college event participation and 
   - `python-dotenv` for environment configuration
   - `httpx` for async HTTP requests
 
----
-
-## UML Diagrams
-
-#### Class Diagrams
-
-![Class Diagrams](./diagrams/class_diagram.jpeg)
-
-#### Use Case Diagram
-
-![Use Case Diagram](./diagrams/use_case_diagram.jpeg)
-
-#### Sequence Diagram
-
-**Authentication and event creation flow**
-
-![Sequence Diagram](./diagrams/sequence_diagram1.jpeg)
-
-**Team management and attendance flow**
-
-![Sequence Diagram](./diagrams/sequence_diagram2.jpeg)
-
----
 
 ## Architecture Design
 
 ### Client-Server Architecture
 
 The application follows a traditional **3-tier client-server architecture**:
-
-![Architecture Diagram](./diagrams/architecture_diagram.jpeg)
 
 ### Frontend Architecture
 
